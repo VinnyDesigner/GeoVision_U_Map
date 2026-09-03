@@ -72,6 +72,7 @@ import {
   Save
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import { authService } from './services/authService.js';
 import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery } from './services/spatialSearchService.js';
 import leftLogo from './assets/left.png';
 import rightLogo from './assets/right.png';
@@ -115,7 +116,19 @@ import AboutUsPage from './pages/AboutUsPage.jsx';
 function App() {
   const [theme, setTheme] = useState('light');
   const [lang, setLang] = useState('en');
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const session = authService.getInitialSession();
+    return session.user;
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const session = authService.getInitialSession();
+    return session.isLoggedIn;
+  });
+  const [isGuest, setIsGuest] = useState(() => {
+    const session = authService.getInitialSession();
+    return !session.isLoggedIn;
+  });
+  const [pendingUserAction, setPendingUserAction] = useState(null);
   const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [authState, setAuthState] = useState('login');
   const [isAboutUsOpen, setIsAboutUsOpen] = useState(false);
@@ -125,182 +138,65 @@ function App() {
   const [activeTab, setActiveTab] = useState('history'); // 'history' | 'collections' | 'layers' | 'analysis' | 'projects'
   const [collectionsTab, setCollectionsTab] = useState('queries'); // 'queries' | 'favorites'
   const [collectionsFilterQuery, setCollectionsFilterQuery] = useState('');
-  const DEFAULT_SAVED_QUERIES = [
-    {
-      id: 'sq-1',
-      title: 'Schools within 2 km in Abu Dhabi',
-      category: 'Education',
-      resultsCount: 8,
-      timestamp: 'Just now',
-      createdAt: Date.now() - 60000,
-      isFavorite: false,
-      queryState: {
-        query: 'Schools within 2 km in Abu Dhabi',
-        category: 'Education',
-        selectedSubcategories: { 'Public Schools': true, 'Private Schools': true },
-        spatialType: 'text'
-      }
-    },
-    {
-      id: 'sq-2',
-      title: 'Hospitals & Medical Centers near Khalifa City',
-      category: 'Healthcare',
-      resultsCount: 14,
-      timestamp: '10 min ago',
-      createdAt: Date.now() - 600000,
-      isFavorite: false,
-      queryState: {
-        query: 'Hospitals & Medical Centers near Khalifa City',
-        category: 'Healthcare',
-        selectedSubcategories: { 'Hospitals': true, 'Medical Centers': true },
-        spatialType: 'text'
-      }
-    },
-    {
-      id: 'sq-3',
-      title: 'Healthcare facilities within drawn area',
-      category: 'Healthcare',
-      resultsCount: 13,
-      timestamp: 'Yesterday',
-      createdAt: Date.now() - 86400000,
-      isFavorite: false,
-      queryState: {
-        query: '',
-        category: 'Healthcare',
-        selectedSubcategories: { 'Hospitals': true, 'Clinics': true, 'Pharmacies': true },
-        spatialType: 'draw',
-        drawnGeometry: {
-          geometryType: 'polygon',
-          coordinates: [
-            [24.460, 54.340],
-            [24.490, 54.360],
-            [24.480, 54.410],
-            [24.440, 54.390]
-          ]
-        }
-      }
-    },
-    {
-      id: 'sq-4',
-      title: 'Commercial Development Zones - High Traffic',
-      category: 'Industrial',
-      resultsCount: 6,
-      timestamp: '3 days ago',
-      createdAt: Date.now() - 259200000,
-      isFavorite: false,
-      queryState: {
-        query: 'Commercial Development Zones',
-        category: 'Industrial',
-        selectedSubcategories: {},
-        spatialType: 'text'
-      }
-    },
-    {
-      id: 'sq-5',
-      title: 'Public Parks & Recreation Facilities',
-      category: 'Environment',
-      resultsCount: 9,
-      timestamp: 'May 12',
-      createdAt: Date.now() - 500000000,
-      isFavorite: false,
-      queryState: {
-        query: 'Public Parks & Recreation Facilities',
-        category: 'Environment',
-        selectedSubcategories: { 'Public Parks': true, 'Nature Reserves': true },
-        spatialType: 'text'
-      }
-    }
-  ];
-
-  const DEFAULT_SEARCH_HISTORY = [
-    { id: 1, text: 'Schools within 2 km', category: 'Education', resultsCount: 12, timestamp: 'Just now', queryState: { query: 'Schools within 2 km', category: 'Education' } },
-    { id: 2, text: 'Hospitals Near Me', category: 'Healthcare', resultsCount: 18, timestamp: '12 min ago', queryState: { query: 'Hospitals Near Me', category: 'Healthcare' } },
-    { id: 3, text: 'Government Offices', category: 'Government', resultsCount: 25, timestamp: '2 hours ago', queryState: { query: 'Government Offices', category: 'Government' } },
-    { id: 4, text: 'Restaurants', category: 'Food & Dining', resultsCount: 32, timestamp: 'Yesterday', queryState: { query: 'Restaurants', category: 'Food & Dining' } },
-    { id: 5, text: 'Hospitals Near Me', category: 'Healthcare', resultsCount: 18, timestamp: 'Yesterday', queryState: { query: 'Hospitals Near Me', category: 'Healthcare' } },
-    { id: 6, text: 'Find Schools near Khalifa city', category: 'Education', resultsCount: 9, timestamp: 'Yesterday', queryState: { query: 'Find Schools near Khalifa city', category: 'Education' } },
-    { id: 7, text: 'Commercial Development Zones', category: 'Industrial', resultsCount: 6, timestamp: '2 days ago', queryState: { query: 'Commercial Development Zones', category: 'Industrial' } },
-    { id: 8, text: 'Public parks in abu dhabi', category: 'Environment', resultsCount: 14, timestamp: '3 days ago', queryState: { query: 'Public parks in abu dhabi', category: 'Environment' } }
-  ];
-
-  const DEFAULT_FAVORITE_PLACES = [
-    {
-      id: 'fav-1',
-      title: 'Dubai Aluminium (DUBAL) Jebel Ali',
-      category: 'Industrial',
-      subcategory: 'Industrial Area',
-      area: 'Jebel Ali Industrial Area',
-      lat: 25.011,
-      lon: 55.105,
-      coords: [25.011, 55.105],
-      timestamp: 'Just now',
-      isFavorite: true
-    },
-    {
-      id: 'fav-2',
-      title: 'Emirates Global Aluminium (EGA) Taweelah',
-      category: 'Industrial',
-      subcategory: 'Industrial Zone',
-      area: 'Al Taweelah Industrial Zone',
-      lat: 24.786,
-      lon: 54.712,
-      coords: [24.786, 54.712],
-      timestamp: 'Just now',
-      isFavorite: true
-    }
-  ];
 
   const [savedQueries, setSavedQueries] = useState(() => {
-    try {
-      const saved = localStorage.getItem('geovision_saved_queries');
-      return saved ? JSON.parse(saved) : DEFAULT_SAVED_QUERIES;
-    } catch {
-      return DEFAULT_SAVED_QUERIES;
+    const session = authService.getInitialSession();
+    if (session.isLoggedIn && session.user?.username) {
+      return authService.getUserSavedQueries(session.user.username);
     }
+    return [];
   });
 
   const [favoritePlaces, setFavoritePlaces] = useState(() => {
-    try {
-      const saved = localStorage.getItem('geovision_favorite_places');
-      return saved ? JSON.parse(saved) : DEFAULT_FAVORITE_PLACES;
-    } catch {
-      return DEFAULT_FAVORITE_PLACES;
+    const session = authService.getInitialSession();
+    if (session.isLoggedIn && session.user?.username) {
+      return authService.getUserFavorites(session.user.username);
     }
+    return [];
   });
 
   const [searchHistory, setSearchHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('geovision_search_history');
-      return saved ? JSON.parse(saved) : DEFAULT_SEARCH_HISTORY;
-    } catch {
-      return DEFAULT_SEARCH_HISTORY;
+    const session = authService.getInitialSession();
+    if (session.isLoggedIn && session.user?.username) {
+      return authService.getUserSearchHistory(session.user.username);
     }
+    return [];
   });
 
-  // Persist collections & history changes across browser refresh
+  // Synchronize collections whenever currentUser or login state changes
   useEffect(() => {
-    try {
-      localStorage.setItem('geovision_saved_queries', JSON.stringify(savedQueries));
-    } catch (e) {
-      console.warn('Could not persist saved queries to localStorage', e);
+    if (isLoggedIn && currentUser?.username) {
+      const q = authService.getUserSavedQueries(currentUser.username);
+      const f = authService.getUserFavorites(currentUser.username);
+      const h = authService.getUserSearchHistory(currentUser.username);
+      setSavedQueries(q);
+      setFavoritePlaces(f);
+      setSearchHistory(h);
+    } else {
+      setSavedQueries([]);
+      setFavoritePlaces([]);
+      setSearchHistory([]);
     }
-  }, [savedQueries]);
+  }, [isLoggedIn, currentUser?.username]);
+
+  // Persist collections per registered user
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.username) {
+      authService.saveUserSavedQueries(currentUser.username, savedQueries);
+    }
+  }, [savedQueries, isLoggedIn, currentUser?.username]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('geovision_favorite_places', JSON.stringify(favoritePlaces));
-    } catch (e) {
-      console.warn('Could not persist favorite places to localStorage', e);
+    if (isLoggedIn && currentUser?.username) {
+      authService.saveUserFavorites(currentUser.username, favoritePlaces);
     }
-  }, [favoritePlaces]);
+  }, [favoritePlaces, isLoggedIn, currentUser?.username]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('geovision_search_history', JSON.stringify(searchHistory));
-    } catch (e) {
-      console.warn('Could not persist search history to localStorage', e);
+    if (isLoggedIn && currentUser?.username) {
+      authService.saveUserSearchHistory(currentUser.username, searchHistory);
     }
-  }, [searchHistory]);
+  }, [searchHistory, isLoggedIn, currentUser?.username]);
 
   const [restoredDrawnGeometry, setRestoredDrawnGeometry] = useState(null);
   const [activeQueryMenuId, setActiveQueryMenuId] = useState(null);
@@ -533,8 +429,23 @@ function App() {
   };
 
   const getChipIcon = (chip) => {
+    if (chip.action === 'save_search' || chip.action === 'add_favorite') {
+      return <Bookmark size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
+    }
     const text = ((chip.label || '') + ' ' + (chip.query || '') + ' ' + (chip.category || '')).toLowerCase();
     
+    if (text.includes('save') || text.includes('حفظ')) {
+      return <Bookmark size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
+    }
+    if (text.includes('rank') || text.includes('top') || text.includes('rating') || text.includes('superlative') || text.includes('تقييم') || text.includes('أعلى') || text.includes('أفضل') || text.includes('ترتيب')) {
+      return <BarChart2 size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
+    }
+    if (text.includes('near') || text.includes('closest') || text.includes('قريب') || text.includes('أقرب')) {
+      return <Navigation size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
+    }
+    if (text.includes('radius') || text.includes('km') || text.includes('نطاق') || text.includes('كم') || text.includes('مسافة')) {
+      return <MapPin size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
+    }
     if (text.includes('what if') || text.includes('suitab') || text.includes('ai') || text.includes('grow') || text.includes('simulat') || text.includes('score') || text.includes('ماذا لو') || text.includes('ذكاء') || text.includes('ملاءمة') || text.includes('أثر')) {
       return <Sparkles size={13} color="#004B87" strokeWidth={1.8} style={{ flexShrink: 0 }} />;
     }
@@ -758,6 +669,9 @@ function App() {
   const [aiSearchQuery, setAiSearchQuery] = useState('');
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [chatMessages, setChatMessages] = useState([getInitialWelcomeMessage()]);
+  const [activeContextBadges, setActiveContextBadges] = useState([]);
+  const [isContextPopoverOpen, setIsContextPopoverOpen] = useState(false);
+  const contextPopoverRef = useRef(null);
 
   // Keep starting welcome message in sync when user toggles between Arabic and English
   useEffect(() => {
@@ -769,13 +683,81 @@ function App() {
     });
   }, [lang]);
 
+  // Click outside to close context popover
+  useEffect(() => {
+    const handleClickOutsideContext = (e) => {
+      if (contextPopoverRef.current && !contextPopoverRef.current.contains(e.target)) {
+        setIsContextPopoverOpen(false);
+      }
+    };
+    if (isContextPopoverOpen) {
+      document.addEventListener('pointerdown', handleClickOutsideContext);
+    }
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutsideContext);
+    };
+  }, [isContextPopoverOpen]);
+
   const handleNewChat = () => {
+    spatialAIEngineInstance.resetContext();
+    setActiveContextBadges([]);
+    setIsContextPopoverOpen(false);
     setChatMessages([getInitialWelcomeMessage()]);
     setActiveSearchResults([]);
     setSelectedLocation(null);
     setAiSearchQuery('');
     setSearchQuery('');
     showToast(lang === 'ar' ? 'تم بدء محادثة جديدة' : 'New Chat Started');
+  };
+
+  const handleClearAllContext = () => {
+    spatialAIEngineInstance.resetContext();
+    setActiveContextBadges([]);
+    setIsContextPopoverOpen(false);
+    const userLoc = { lat: 24.4539, lon: 54.3773 };
+    const engineRes = spatialAIEngineInstance.processNaturalLanguageQuery('reset', '', lang, { userLocation: userLoc });
+    setActiveSearchResults(engineRes.results || []);
+    setChatMessages(prev => [
+      ...prev,
+      {
+        sender: 'ai',
+        text: lang === 'ar' ? 'تم مسح كافة سياقات المحادثة وإعادة تعيين نتائج البحث.' : 'Cleared all active conversation context filters.',
+        structuredResults: null,
+        chips: engineRes.chips || [],
+        id: Date.now()
+      }
+    ]);
+    showToast(lang === 'ar' ? 'تم مسح سياق المحادثة' : 'Context Cleared');
+  };
+
+  const handleRemoveContextBadge = (badgeId) => {
+    const userLoc = { lat: 24.4539, lon: 54.3773, name: 'Current Location', arabicName: 'موقعك الحالي' };
+    const engineRes = spatialAIEngineInstance.removeContextBadge(badgeId, lang, { userLocation: userLoc, selectedLocation });
+    const results = engineRes.results || [];
+    setActiveSearchResults(results);
+    const newBadges = engineRes.contextBadges || [];
+    setActiveContextBadges(newBadges);
+    if (newBadges.length === 0) {
+      setIsContextPopoverOpen(false);
+    }
+
+    if (engineRes.mapAction?.type === 'fly_to' && engineRes.mapAction.center && mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo(engineRes.mapAction.center, engineRes.mapAction.zoom || 14);
+    }
+
+    const searchId = Date.now() + Math.random();
+    setChatMessages(prev => [
+      ...prev,
+      {
+        sender: 'ai',
+        text: engineRes.aiMessageText,
+        structuredResults: engineRes.structuredResults || null,
+        analytics: engineRes.analytics || null,
+        chips: engineRes.chips || [],
+        isExpanded: true,
+        id: searchId
+      }
+    ]);
   };
 
   const chatMessagesContainerRef = useRef(null);
@@ -975,6 +957,7 @@ function App() {
             sender: 'ai',
             text: queryResult.aiMessageText,
             structuredResults: queryResult.structuredResults,
+            chips: queryResult.chips || [],
             isExpanded: true,
             id: searchId
           }
@@ -1070,7 +1053,86 @@ function App() {
     showToast(`Restored: "${title}"`);
   };
 
+  // Process pending action upon successful authentication
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.username && pendingUserAction) {
+      if (pendingUserAction.type === 'save_current_search') {
+        const cleanTitle = (pendingUserAction.query || 'Spatial Search').trim();
+        const newId = `sq-${Date.now()}`;
+        const newItem = {
+          id: newId,
+          title: cleanTitle,
+          category: pendingUserAction.category || 'Spatial Search',
+          resultsCount: pendingUserAction.resultsCount || 0,
+          timestamp: 'Just now',
+          createdAt: Date.now(),
+          isFavorite: true,
+          queryState: {
+            query: cleanTitle,
+            category: pendingUserAction.category,
+            resultsCount: pendingUserAction.resultsCount
+          }
+        };
+        setSavedQueries(prev => [newItem, ...prev.filter(q => q.title.toLowerCase() !== cleanTitle.toLowerCase())]);
+        showToast(lang === 'ar' ? 'تم حفظ البحث في مساحة عملك' : 'Search saved to your workspace');
+      } else if (pendingUserAction.type === 'favorite_place' && pendingUserAction.place) {
+        const place = pendingUserAction.place;
+        const newFav = {
+          id: place.id || `fav-${Date.now()}`,
+          title: place.title,
+          arabicTitle: place.arabicTitle || '',
+          category: place.category || place.subcategory || 'Location',
+          subcategory: place.subcategory || place.category || '',
+          lat: place.lat,
+          lon: place.lon,
+          coords: [place.lat, place.lon],
+          area: place.address || place.city || 'Abu Dhabi',
+          timestamp: 'Just now',
+          isFavorite: true
+        };
+        setFavoritePlaces(prev => [newFav, ...prev.filter(p => p.id !== place.id && p.title !== place.title)]);
+        showToast(lang === 'ar' ? `تمت إضافة "${place.title}" إلى المفضلة` : `Added "${place.title}" to Favorites`);
+      }
+      setPendingUserAction(null);
+    }
+  }, [isLoggedIn, currentUser?.username, pendingUserAction]);
+
+  const handleSaveCurrentSearch = (msg) => {
+    const qTitle = searchQuery || spatialAIEngineInstance.context?.dataset || (activeSearchResults[0]?.category) || 'Spatial Search';
+    if (!isLoggedIn) {
+      setPendingUserAction({
+        type: 'save_current_search',
+        query: qTitle,
+        category: spatialAIEngineInstance.context?.dataset || 'Spatial Search',
+        resultsCount: activeSearchResults.length,
+        contextSnapshot: { ...spatialAIEngineInstance.context }
+      });
+      setIsSignInOpen(true);
+      setAuthState('login');
+      setShowMap(false);
+      showToast(lang === 'ar' ? 'يرجى تسجيل الدخول لحفظ عملية البحث في حسابك' : 'Please sign in to save this search to your workspace');
+      return;
+    }
+
+    autoSaveSpatialQuery({
+      title: qTitle,
+      category: spatialAIEngineInstance.context?.dataset || 'Spatial Search',
+      selectedSubcategories: selectedSubcategories,
+      spatialType: 'text',
+      resultsCount: activeSearchResults.length,
+      isFavorite: true
+    });
+    showToast(lang === 'ar' ? 'تم حفظ البحث في مجموعتك بنجاح' : 'Search saved to your collections');
+  };
+
   const handleToggleFavoriteQuery = (id) => {
+    if (!isLoggedIn) {
+      setIsSignInOpen(true);
+      setAuthState('login');
+      setShowMap(false);
+      showToast(lang === 'ar' ? 'يرجى تسجيل الدخول لحفظ عمليات البحث في حسابك' : 'Sign in to save this search to your account');
+      return;
+    }
     setSavedQueries(prev => prev.map(q => {
       if (q.id === id) {
         const nextFav = !q.isFavorite;
@@ -1103,6 +1165,17 @@ function App() {
 
   const handleToggleFavoritePlace = (place) => {
     if (!place) return;
+    if (!isLoggedIn) {
+      setPendingUserAction({
+        type: 'favorite_place',
+        place
+      });
+      setIsSignInOpen(true);
+      setAuthState('login');
+      setShowMap(false);
+      showToast(lang === 'ar' ? 'يرجى تسجيل الدخول لإضافة المواقع إلى المفضلة' : 'Please sign in to add locations to your favorites');
+      return;
+    }
     const isAlreadyFav = favoritePlaces.some(p => p.id === place.id || p.title === place.title);
 
     if (isAlreadyFav) {
@@ -1169,18 +1242,34 @@ function App() {
     const cat = (category || '').toLowerCase();
     if (cat.includes('educ') || cat.includes('school')) {
       return {
-        icon: <GraduationCap size={size} color="#2563EB" />,
-        bg: 'rgba(37, 99, 235, 0.10)',
-        color: '#2563EB',
-        badgeBg: 'rgba(37, 99, 235, 0.08)'
+        icon: <GraduationCap size={size} color="#8B5CF6" />,
+        bg: 'rgba(139, 92, 246, 0.10)',
+        color: '#8B5CF6',
+        badgeBg: 'rgba(139, 92, 246, 0.08)'
       };
     }
-    if (cat.includes('health') || cat.includes('hosp') || cat.includes('medic') || cat.includes('clinic')) {
+    if (cat.includes('health') || cat.includes('med') || cat.includes('hosp')) {
       return {
-        icon: <Heart size={size} color="#0284C7" fill="none" strokeWidth={2} />,
-        bg: 'rgba(2, 132, 199, 0.10)',
-        color: '#0284C7',
-        badgeBg: 'rgba(2, 132, 199, 0.08)'
+        icon: <Heart size={size} color="#EF4444" />,
+        bg: 'rgba(239, 68, 68, 0.10)',
+        color: '#EF4444',
+        badgeBg: 'rgba(239, 68, 68, 0.08)'
+      };
+    }
+    if (cat.includes('indus') || cat.includes('plant') || cat.includes('power')) {
+      return {
+        icon: <Activity size={size} color="#F59E0B" />,
+        bg: 'rgba(245, 158, 11, 0.10)',
+        color: '#F59E0B',
+        badgeBg: 'rgba(245, 158, 11, 0.08)'
+      };
+    }
+    if (cat.includes('park') || cat.includes('env') || cat.includes('green') || cat.includes('nature')) {
+      return {
+        icon: <Trees size={size} color="#16A34A" />,
+        bg: 'rgba(22, 163, 74, 0.10)',
+        color: '#16A34A',
+        badgeBg: 'rgba(22, 163, 74, 0.08)'
       };
     }
     if (cat.includes('gov') || cat.includes('admin') || cat.includes('civic') || cat.includes('ministry')) {
@@ -1207,14 +1296,6 @@ function App() {
         badgeBg: 'rgba(13, 148, 136, 0.08)'
       };
     }
-    if (cat.includes('park') || cat.includes('env') || cat.includes('green') || cat.includes('nature')) {
-      return {
-        icon: <Trees size={size} color="#16A34A" />,
-        bg: 'rgba(22, 163, 74, 0.10)',
-        color: '#16A34A',
-        badgeBg: 'rgba(22, 163, 74, 0.08)'
-      };
-    }
     return {
       icon: <Search size={size} color="#1D68F2" />,
       bg: 'rgba(29, 104, 242, 0.10)',
@@ -1222,8 +1303,6 @@ function App() {
       badgeBg: 'rgba(29, 104, 242, 0.08)'
     };
   };
-
-
 
   const handleUnifiedSearch = (searchOptions = {}) => {
     setSelectedLocation(null);
@@ -1296,10 +1375,12 @@ function App() {
     }
 
     // Spatial GIS NLP Engine Processing with active Language Context
-    const engineRes = spatialAIEngineInstance.processNaturalLanguageQuery(cleanQuery, cleanCategory, lang);
+    const userLoc = { lat: 24.4539, lon: 54.3773, name: 'Current Location', arabicName: 'موقعك الحالي' };
+    const engineRes = spatialAIEngineInstance.processNaturalLanguageQuery(cleanQuery, cleanCategory, lang, { userLocation: userLoc, selectedLocation });
     const results = engineRes.results || [];
     setSelectedLocation(null);
     setActiveSearchResults(results);
+    setActiveContextBadges(engineRes.contextBadges || []);
 
     const tagLabel = cleanCategory || cleanQuery || 'All Locations';
     setActiveSearchFilterTag({ query: cleanQuery, category: cleanCategory, label: tagLabel });
@@ -1308,14 +1389,20 @@ function App() {
     const count = results.length;
     addLog('AI Spatial Engine', `[${engineRes.intent.toUpperCase()}] ${engineRes.querySummary || `${count} matched`}`, 'success');
 
-    // Auto-save successful query to Saved Queries & History
-    autoSaveSpatialQuery({
-      title: cleanQuery || cleanCategory,
-      category: cleanCategory || (results[0]?.category) || 'Spatial Search',
-      selectedSubcategories: selectedSubcategories,
-      spatialType: 'text',
-      resultsCount: count
-    });
+    // Auto-save successful query to Saved Queries & History only for authenticated users
+    if (isLoggedIn) {
+      autoSaveSpatialQuery({
+        title: cleanQuery || cleanCategory,
+        category: cleanCategory || (results[0]?.category) || 'Spatial Search',
+        selectedSubcategories: selectedSubcategories,
+        spatialType: 'text',
+        resultsCount: count
+      });
+    }
+
+    if (engineRes.mapAction?.type === 'fly_to' && engineRes.mapAction.center && mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo(engineRes.mapAction.center, engineRes.mapAction.zoom || 14);
+    }
 
     let userBubbleText = displayLabel || cleanQuery || cleanCategory;
     if (lang === 'ar') {
@@ -1351,6 +1438,7 @@ function App() {
             text: engineRes.aiMessageText,
             structuredResults: engineRes.structuredResults || null,
             clarification: engineRes.clarification || null,
+            analytics: engineRes.analytics || null,
             isExpanded: true,
             chips: engineRes.chips || [],
             id: searchId
@@ -1415,6 +1503,7 @@ function App() {
           sender: 'ai',
           text: queryResult.aiMessageText,
           structuredResults: queryResult.structuredResults,
+          chips: queryResult.chips || [],
           isExpanded: true,
           id: searchId
         }
@@ -1924,165 +2013,231 @@ function App() {
                       zIndex: 2
                     }}
                   >
-                    {searchHistory
-                      .filter(item =>
-                        !historyFilterQuery ||
-                        item.text.toLowerCase().includes(historyFilterQuery.toLowerCase()) ||
-                        (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
-                      )
-                      .map((item) => {
-                        const isActive = activeHistoryId === item.id;
-                        const iconConfig = getCategoryIconForHistory(item.category || item.text);
+                    {!isLoggedIn ? (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '36px 16px',
+                        textAlign: 'center',
+                        gap: '12px',
+                        background: 'rgba(255, 255, 255, 0.7)',
+                        borderRadius: '12px',
+                        border: '1px dashed rgba(29, 104, 242, 0.3)',
+                        margin: '12px 0'
+                      }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          background: 'rgba(0, 75, 135, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#004B87'
+                        }}>
+                          <User size={20} />
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#002B5B' }}>
+                          {lang === 'ar' ? 'سجل الدخول لعرض سجل البحث' : 'Sign in to access search history'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B', maxWidth: '240px', lineHeight: 1.4 }}>
+                          {lang === 'ar'
+                            ? 'احفظ نتائج البحث السابقة واستعد جلسات المحادثة والاستعلامات المكانية.'
+                            : 'Save previous search queries, restore conversation sessions, and access past results.'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSignInOpen(true);
+                            setAuthState('login');
+                            setShowMap(false);
+                          }}
+                          style={{
+                            marginTop: '4px',
+                            padding: '8px 18px',
+                            background: 'linear-gradient(135deg, #004B87 0%, #1D68F2 100%)',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0, 75, 135, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <LogIn size={14} />
+                          <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
+                        </button>
+                      </div>
+                    ) : searchHistory.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                        {lang === 'ar' ? 'لا يوجد سجل بحث حتى الآن' : 'No search history recorded yet.'}
+                      </div>
+                    ) : (
+                      searchHistory
+                        .filter(item =>
+                          !historyFilterQuery ||
+                          item.text.toLowerCase().includes(historyFilterQuery.toLowerCase()) ||
+                          (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
+                        )
+                        .map((item) => {
+                          const isActive = activeHistoryId === item.id;
+                          const iconConfig = getCategoryIconForHistory(item.category || item.text);
 
-                        return (
-                          <div
-                            key={item.id}
-                            className={`search-history-item ${isActive ? 'active-history-item' : ''}`}
-                            onClick={() => {
-                              setActiveHistoryId(item.id);
-                              handleUnifiedSearch({ query: item.text, category: item.category });
-                              setIsAISearchBarOpen(true);
-                              setPanelHeight(200);
-                            }}
-                            style={{
-                              position: 'relative',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              padding: '10px 12px',
-                              borderRadius: '10px',
-                              background: isActive ? 'rgba(235, 243, 255, 0.95)' : 'rgba(255, 255, 255, 0.85)',
-                              border: isActive ? '1.5px solid #3B82F6' : '1px solid rgba(226, 232, 240, 0.85)',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                              boxShadow: isActive ? '0 2px 8px rgba(29, 104, 242, 0.10)' : '0 1px 3px rgba(0, 43, 91, 0.03)',
-                              gap: '5px',
-                              textAlign: lang === 'ar' ? 'right' : 'left'
-                            }}
-                          >
-                            {/* Top Row: Small Icon + Title on left, 3-Dot Button on right */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
-                                {/* Small Category Icon aligned with title */}
-                                <div
-                                  style={{
-                                    width: '20px',
-                                    height: '20px',
-                                    borderRadius: '50%',
-                                    background: iconConfig.bg,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexShrink: 0
-                                  }}
-                                >
-                                  {iconConfig.icon}
-                                </div>
-
-                                {renamingHistoryId === item.id ? (
+                          return (
+                            <div
+                              key={item.id}
+                              className={`search-history-item ${isActive ? 'active-history-item' : ''}`}
+                              onClick={() => {
+                                setActiveHistoryId(item.id);
+                                handleUnifiedSearch({ query: item.text, category: item.category });
+                                setIsAISearchBarOpen(true);
+                                setPanelHeight(200);
+                              }}
+                              style={{
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-start',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '10px 12px',
+                                borderRadius: '10px',
+                                background: isActive ? 'rgba(235, 243, 255, 0.95)' : 'rgba(255, 255, 255, 0.85)',
+                                border: isActive ? '1.5px solid #3B82F6' : '1px solid rgba(226, 232, 240, 0.85)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                boxShadow: isActive ? '0 2px 8px rgba(29, 104, 242, 0.10)' : '0 1px 3px rgba(0, 43, 91, 0.03)',
+                                gap: '5px',
+                                textAlign: lang === 'ar' ? 'right' : 'left'
+                              }}
+                            >
+                              {/* Top Row: Small Icon + Title on left, 3-Dot Button on right */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
+                                  {/* Small Category Icon aligned with title */}
                                   <div
-                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
-                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      width: '20px',
+                                      height: '20px',
+                                      borderRadius: '50%',
+                                      background: iconConfig.bg,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0
+                                    }}
                                   >
-                                    <input
-                                      type="text"
-                                      value={renameHistoryText}
-                                      onChange={(e) => setRenameHistoryText(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveRenameHistory(item.id);
-                                        if (e.key === 'Escape') setRenamingHistoryId(null);
-                                      }}
-                                      autoFocus
+                                    {iconConfig.icon}
+                                  </div>
+
+                                  {renamingHistoryId === item.id ? (
+                                    <div
+                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <input
+                                        type="text"
+                                        value={renameHistoryText}
+                                        onChange={(e) => setRenameHistoryText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveRenameHistory(item.id);
+                                          if (e.key === 'Escape') setRenamingHistoryId(null);
+                                        }}
+                                        autoFocus
+                                        style={{
+                                          flex: 1,
+                                          padding: '3px 6px',
+                                          fontSize: '12px',
+                                          borderRadius: '4px',
+                                          border: '1px solid #1D68F2',
+                                          outline: 'none',
+                                          background: '#FFFFFF',
+                                          color: '#002B5B',
+                                          textAlign: lang === 'ar' ? 'right' : 'left'
+                                        }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveRenameHistory(item.id)}
+                                        style={{ padding: '3px 6px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                      >
+                                        <Check size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setRenamingHistoryId(null)}
+                                        style={{ padding: '3px 6px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div
                                       style={{
-                                        flex: 1,
-                                        padding: '3px 6px',
-                                        fontSize: '12px',
-                                        borderRadius: '4px',
-                                        border: '1px solid #1D68F2',
-                                        outline: 'none',
-                                        background: '#FFFFFF',
-                                        color: '#002B5B',
+                                        fontSize: '12.5px',
+                                        fontWeight: 600,
+                                        color: '#0F172A',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        lineHeight: '1.3',
                                         textAlign: lang === 'ar' ? 'right' : 'left'
                                       }}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveRenameHistory(item.id)}
-                                      style={{ padding: '3px 6px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                      title={lang === 'ar' ? getArabicTitle(item.text) : item.text}
                                     >
-                                      <Check size={12} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setRenamingHistoryId(null)}
-                                      style={{ padding: '3px 6px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div
-                                    style={{
-                                      fontSize: '12.5px',
-                                      fontWeight: 600,
-                                      color: '#0F172A',
-                                      whiteSpace: 'nowrap',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      lineHeight: '1.3',
-                                      textAlign: lang === 'ar' ? 'right' : 'left'
-                                    }}
-                                    title={lang === 'ar' ? getArabicTitle(item.text) : item.text}
-                                  >
-                                    {lang === 'ar' ? getArabicTitle(item.text) : item.text}
-                                  </div>
-                                )}
-                              </div>
+                                      {lang === 'ar' ? getArabicTitle(item.text) : item.text}
+                                    </div>
+                                  )}
+                                </div>
 
-                              {/* Right: 3-Dot Menu Button Container */}
-                              <div className="history-menu-container" style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  title={lang === 'ar' ? 'خيارات الاستعلام' : "Query Options"}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (activeHistoryMenuId === item.id) {
-                                      setActiveHistoryMenuId(null);
-                                    } else {
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      if (lang === 'ar') {
-                                        setHistoryMenuPos({ top: rect.top - 4, left: Math.max(10, rect.left - 155) });
+                                {/* Right: 3-Dot Menu Button Container */}
+                                <div className="history-menu-container" style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    title={lang === 'ar' ? 'خيارات الاستعلام' : "Query Options"}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (activeHistoryMenuId === item.id) {
+                                        setActiveHistoryMenuId(null);
                                       } else {
-                                        setHistoryMenuPos({ top: rect.top - 4, left: rect.right + 10 });
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        if (lang === 'ar') {
+                                          setHistoryMenuPos({ top: rect.top - 4, left: Math.max(10, rect.left - 155) });
+                                        } else {
+                                          setHistoryMenuPos({ top: rect.top - 4, left: rect.right + 10 });
+                                        }
+                                        setActiveHistoryMenuId(item.id);
                                       }
-                                      setActiveHistoryMenuId(item.id);
-                                    }
-                                  }}
-                                  style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    borderRadius: '6px',
-                                    border: '1px solid rgba(203, 213, 225, 0.8)',
-                                    background: activeHistoryMenuId === item.id ? 'rgba(29, 104, 242, 0.08)' : '#FFFFFF',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    color: '#64748B',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  <MoreVertical size={13} />
-                                </button>
-
-                                {/* Floating Dropdown Menu (Rendered directly into Body to float outside all frames) */}
-                                {activeHistoryMenuId === item.id && createPortal(
-                                  <div
-                                    className="floating-history-dropdown"
-                                    onClick={(e) => e.stopPropagation()}
+                                    }}
                                     style={{
+                                      width: '26px',
+                                      height: '26px',
+                                      borderRadius: '6px',
+                                      border: '1px solid rgba(203, 213, 225, 0.8)',
+                                      background: activeHistoryMenuId === item.id ? 'rgba(29, 104, 242, 0.08)' : '#FFFFFF',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      color: '#64748B',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <MoreVertical size={13} />
+                                  </button>
+
+                                  {/* Floating Dropdown Menu (Rendered directly into Body to float outside all frames) */}
+                                  {activeHistoryMenuId === item.id && createPortal(
+                                    <div
+                                      className="floating-history-dropdown"
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
                                       position: 'fixed',
                                       top: `${historyMenuPos.top}px`,
                                       left: `${historyMenuPos.left}px`,
@@ -2240,7 +2395,8 @@ function App() {
                             </div>
                           </div>
                         );
-                      })}
+                      })
+                    )}
                   </div>
                 </div>
               )}
@@ -2393,7 +2549,75 @@ function App() {
                     zIndex: 2
                   }}
                 >
-                  {collectionsTab === 'queries' &&
+                  {!isLoggedIn ? (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '36px 16px',
+                      textAlign: 'center',
+                      gap: '12px',
+                      background: 'rgba(255, 255, 255, 0.7)',
+                      borderRadius: '12px',
+                      border: '1px dashed rgba(29, 104, 242, 0.3)',
+                      margin: '12px 0'
+                    }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        background: 'rgba(0, 75, 135, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#004B87'
+                      }}>
+                        <Bookmark size={20} />
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#002B5B' }}>
+                        {lang === 'ar' ? 'سجل الدخول لعرض المجموعات والمفضلة' : 'Sign in to access your collections'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B', maxWidth: '240px', lineHeight: 1.4 }}>
+                        {lang === 'ar'
+                          ? 'احفظ الاستعلامات والمواقع المفضلة لديك للوصول إليها في أي وقت.'
+                          : 'Save custom spatial queries, bookmark favorite locations, and access them anytime.'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSignInOpen(true);
+                          setAuthState('login');
+                          setShowMap(false);
+                        }}
+                        style={{
+                          marginTop: '4px',
+                          padding: '8px 18px',
+                          background: 'linear-gradient(135deg, #004B87 0%, #1D68F2 100%)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(0, 75, 135, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <LogIn size={14} />
+                        <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                  {collectionsTab === 'queries' && (
+                    savedQueries.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                        {lang === 'ar' ? 'لا توجد استعلامات محفوظة حتى الآن' : 'No saved queries yet.'}
+                      </div>
+                    ) : (
                     savedQueries
                       .filter(item =>
                         !collectionsFilterQuery ||
@@ -2694,11 +2918,18 @@ function App() {
                             </div>
                           </div>
                         );
-                      })}
+                      })
+                    )
+                  )}
 
                   {collectionsTab === 'favorites' && (
-                    <>
-                      {/* Favorited Spatial Queries */}
+                    savedQueries.filter(q => q.isFavorite).length === 0 && favoritePlaces.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                        {lang === 'ar' ? 'لا توجد عناصر مفضلة حتى الآن' : 'No favorites saved yet.'}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Favorited Spatial Queries */}
                       {savedQueries
                         .filter(q => q.isFavorite)
                         .filter(item =>
@@ -2945,6 +3176,9 @@ function App() {
                             </div>
                           );
                         })}
+                      </>
+                    )
+                  )}
                     </>
                   )}
                 </div>
@@ -4648,8 +4882,184 @@ function App() {
                         </h2>
                       </div>
 
-                      {/* ACTION BUTTONS: HISTORY, NEW CHAT & CLOSE */}
+                      {/* ACTION BUTTONS: CONTEXT, HISTORY, NEW CHAT & CLOSE */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {/* 0. COMPACT CONTEXT INDICATOR BUTTON WITH POPOVER */}
+                        {activeContextBadges && activeContextBadges.length > 0 && (
+                          <div style={{ position: 'relative' }} ref={contextPopoverRef}>
+                            <button
+                              type="button"
+                              className={`search-history-toggle-btn ${isContextPopoverOpen ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsContextPopoverOpen(prev => !prev);
+                              }}
+                              title={lang === 'ar' ? 'عرض وإدارة السياق النشط' : "View & Manage Active Context"}
+                              style={{
+                                background: isContextPopoverOpen ? 'rgba(0, 75, 135, 0.14)' : 'rgba(240, 247, 255, 0.95)',
+                                border: isContextPopoverOpen ? '1px solid rgba(0, 75, 135, 0.38)' : '1px solid rgba(29, 104, 242, 0.28)',
+                                borderRadius: '8px',
+                                height: '32px',
+                                padding: '0 8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                cursor: 'pointer',
+                                color: '#004B87',
+                                boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                                transition: 'all 0.2s ease',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", sans-serif' : 'Outfit, Inter, sans-serif'
+                              }}
+                            >
+                              <Compass size={14} color="#004B87" strokeWidth={2.2} />
+                              <span>{lang === 'ar' ? 'السياق' : 'Context'}</span>
+                              <span
+                                style={{
+                                  background: '#004B87',
+                                  color: '#FFFFFF',
+                                  borderRadius: '10px',
+                                  padding: '1px 5px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  lineHeight: '1.2'
+                                }}
+                              >
+                                {activeContextBadges.length}
+                              </span>
+                            </button>
+
+                            {/* CONTEXT POPOVER DROPDOWN */}
+                            {isContextPopoverOpen && (
+                              <div
+                                className="active-context-popover"
+                                style={{
+                                  position: 'absolute',
+                                  top: 'calc(100% + 6px)',
+                                  [lang === 'ar' ? 'left' : 'right']: 0,
+                                  minWidth: '240px',
+                                  maxWidth: '300px',
+                                  background: 'rgba(255, 255, 255, 0.98)',
+                                  backdropFilter: 'blur(16px)',
+                                  WebkitBackdropFilter: 'blur(16px)',
+                                  border: '1px solid rgba(29, 104, 242, 0.2)',
+                                  borderRadius: '12px',
+                                  boxShadow: '0 10px 28px rgba(0, 43, 91, 0.16)',
+                                  padding: '10px',
+                                  zIndex: 1200,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '8px',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {/* Popover Header */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid rgba(0, 75, 135, 0.08)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 700, color: '#002B5B' }}>
+                                    <Compass size={13} color="#004B87" />
+                                    <span>{lang === 'ar' ? 'السياق الحالي' : 'Current Context'}</span>
+                                  </div>
+                                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
+                                    {activeContextBadges.length} {lang === 'ar' ? 'قيود' : activeContextBadges.length === 1 ? 'filter' : 'filters'}
+                                  </span>
+                                </div>
+
+                                {/* Popover Chips List */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
+                                  {activeContextBadges.map((badge, bIdx) => (
+                                    <div
+                                      key={bIdx}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '5px 8px',
+                                        background: 'rgba(240, 247, 255, 0.85)',
+                                        border: '1px solid rgba(29, 104, 242, 0.18)',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: 500,
+                                        color: '#002B5B'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {badge.type === 'location' && <MapPin size={12} color="#004B87" style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'category' && (badge.id === 'Education' ? <GraduationCap size={12} color="#004B87" style={{ flexShrink: 0 }} /> : <Heart size={12} color="#004B87" style={{ flexShrink: 0 }} />)}
+                                        {badge.type === 'filter' && <Shield size={12} color="#004B87" style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'radius' && <Compass size={12} color="#004B87" style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'selectedFeature' && <Target size={12} color="#004B87" style={{ flexShrink: 0 }} />}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{lang === 'ar' ? (badge.arabicLabel || badge.label) : badge.label}</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveContextBadge(badge.id);
+                                        }}
+                                        title={lang === 'ar' ? 'إزالة هذا القيد' : 'Remove this constraint'}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          padding: '2px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#64748B',
+                                          borderRadius: '4px',
+                                          transition: 'color 0.15s ease'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = '#EF4444'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = '#64748B'; }}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Popover Footer: Clear All */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleClearAllContext();
+                                  }}
+                                  style={{
+                                    marginTop: '2px',
+                                    padding: '6px 8px',
+                                    background: 'rgba(239, 68, 68, 0.06)',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                    borderRadius: '7px',
+                                    color: '#DC2626',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '5px',
+                                    transition: 'all 0.15s ease',
+                                    fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", sans-serif' : 'Outfit, Inter, sans-serif'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.06)';
+                                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                                  }}
+                                >
+                                  <Trash2 size={12} color="#DC2626" />
+                                  <span>{lang === 'ar' ? 'مسح كافة سياق المحادثة' : 'Clear all context'}</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* 1. HISTORY BUTTON */}
                         <button
                           className={`search-history-toggle-btn ${isSidebarOpen ? 'active' : ''}`}
@@ -4678,6 +5088,32 @@ function App() {
                           }}
                         >
                           <History size={16} color="#004B87" strokeWidth={2.2} />
+                        </button>
+
+                        {/* 1.5 SAVE SEARCH / BOOKMARK BUTTON */}
+                        <button
+                          className="search-history-toggle-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveCurrentSearch();
+                          }}
+                          title={lang === 'ar' ? 'حفظ هذا البحث' : "Save this search"}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.75)',
+                            border: '1px solid rgba(255, 255, 255, 0.85)',
+                            borderRadius: '8px',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#004B87',
+                            boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Bookmark size={15} color="#004B87" strokeWidth={2.2} />
                         </button>
 
                         {/* 2. NEW CHAT BUTTON */}
@@ -4823,6 +5259,67 @@ function App() {
                                     </div>
                                   )}
 
+                                  {/* Phase 4: Structured Analytics Card */}
+                                  {msg.analytics && (
+                                    <div className="structured-analytics-card" style={{
+                                      marginTop: '6px',
+                                      padding: '10px 12px',
+                                      borderRadius: '10px',
+                                      background: 'rgba(255, 255, 255, 0.95)',
+                                      border: '1px solid rgba(29, 104, 242, 0.22)',
+                                      boxShadow: '0 4px 14px rgba(0, 43, 91, 0.08)',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '8px',
+                                      boxSizing: 'border-box'
+                                    }}>
+                                      {/* Header */}
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0, 75, 135, 0.08)', paddingBottom: '6px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <BarChart2 size={15} color="#004B87" />
+                                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#002B5B' }}>{msg.analytics.title}</span>
+                                        </div>
+                                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#004B87', background: 'rgba(240, 247, 255, 0.9)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(29, 104, 242, 0.15)' }}>
+                                          {msg.analytics.totalCount} {lang === 'ar' ? 'موقعاً' : 'total'}
+                                        </span>
+                                      </div>
+
+                                      {/* Comparative Bars */}
+                                      {msg.analytics.comparison && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                          {msg.analytics.comparison.map((c, cIdx) => (
+                                            <div key={cIdx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: '#002B5B' }}>
+                                                <span>{c.label}</span>
+                                                <span>{c.count} ({c.percentage}%)</span>
+                                              </div>
+                                              <div style={{ height: '6px', borderRadius: '3px', background: 'rgba(0, 75, 135, 0.08)', overflow: 'hidden' }}>
+                                                <div style={{ width: `${Math.max(c.percentage, 4)}%`, height: '100%', background: c.color, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {/* Area / District Ranking Bars */}
+                                      {msg.analytics.data && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '160px', overflowY: 'auto', paddingRight: '2px' }}>
+                                          {msg.analytics.data.map((d, dIdx) => (
+                                            <div key={dIdx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 500, color: '#002B5B' }}>
+                                                <span>{d.label}</span>
+                                                <span style={{ fontWeight: 600 }}>{d.count} ({d.percentage}%)</span>
+                                              </div>
+                                              <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(0, 75, 135, 0.08)', overflow: 'hidden' }}>
+                                                <div style={{ width: `${Math.max(d.percentage, 4)}%`, height: '100%', background: d.color, borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
                                   {/* Structured Results Card Header & Body */}
                                   {msg.structuredResults && (
                                     <div className="structured-results-card">
@@ -4840,16 +5337,44 @@ function App() {
                                           <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>({msg.structuredResults.items.length})</span>
                                         </div>
 
-                                        <button
-                                          className="structured-expand-btn"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setChatMessages(prev => prev.map((m, i) => i === idx ? { ...m, isExpanded: !m.isExpanded } : m));
-                                          }}
-                                          title={msg.isExpanded ? (lang === 'ar' ? 'طي النتائج' : "Collapse Results") : (lang === 'ar' ? 'توسيع النتائج' : "Expand Results")}
-                                        >
-                                          {msg.isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />}
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <button
+                                            type="button"
+                                            className="structured-save-btn"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSaveCurrentSearch(msg);
+                                            }}
+                                            title={lang === 'ar' ? 'حفظ هذا البحث' : "Save this search"}
+                                            style={{
+                                              background: 'rgba(0, 75, 135, 0.06)',
+                                              border: '1px solid rgba(0, 75, 135, 0.18)',
+                                              borderRadius: '6px',
+                                              padding: '3px 8px',
+                                              fontSize: '11px',
+                                              fontWeight: 600,
+                                              color: '#004B87',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            <Bookmark size={12} color="#004B87" />
+                                            <span>{lang === 'ar' ? 'حفظ' : 'Save'}</span>
+                                          </button>
+
+                                          <button
+                                            className="structured-expand-btn"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setChatMessages(prev => prev.map((m, i) => i === idx ? { ...m, isExpanded: !m.isExpanded } : m));
+                                            }}
+                                            title={msg.isExpanded ? (lang === 'ar' ? 'طي النتائج' : "Collapse Results") : (lang === 'ar' ? 'توسيع النتائج' : "Expand Results")}
+                                          >
+                                            {msg.isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />}
+                                          </button>
+                                        </div>
                                       </div>
 
                                       {/* Expanded Body: Subcategory Tabs & Scrollable Item List */}
@@ -5135,64 +5660,84 @@ function App() {
                                       )}
                                     </div>
                                   )}
+
+                                  </div>
                                 </div>
-                              </div>
+
+                                {/* AI Smart Exploration & Follow-up Suggestion Chips Placed OUTSIDE the Chat Bubble */}
+                                {msg.sender === 'ai' && msg.chips && msg.chips.length > 0 && (
+                                  <div
+                                    className="ai-message-followup-container"
+                                    style={{
+                                      display: 'flex',
+                                      flexWrap: 'wrap',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      marginTop: '8px',
+                                      marginBottom: '6px',
+                                      padding: '0 4px',
+                                      width: '100%',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    {msg.chips.map((chip, cIdx) => {
+                                      const cleanLabel = (chip.label || '')
+                                        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2B50}\u{2605}\u{FE0F}\u{200D}\u{25A0}-\u{25FF}\u{2300}-\u{23FF}★⭐✨]/gu, '')
+                                        .trim();
+                                      return (
+                                        <button
+                                          key={cIdx}
+                                          type="button"
+                                          className="structured-radius-chip-btn"
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '7px',
+                                            padding: '6px 12px',
+                                            background: '#FFFFFF',
+                                            border: '1px solid #D0DCEB',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 1px 3px rgba(0, 43, 91, 0.05)',
+                                            fontSize: '12px',
+                                            fontWeight: 500,
+                                            color: '#002B5B',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease',
+                                            textAlign: lang === 'ar' ? 'right' : 'left',
+                                            whiteSpace: 'nowrap'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = '#F0F7FF';
+                                            e.currentTarget.style.borderColor = '#1D68F2';
+                                            e.currentTarget.style.color = '#1D68F2';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = '#FFFFFF';
+                                            e.currentTarget.style.borderColor = '#D0DCEB';
+                                            e.currentTarget.style.color = '#002B5B';
+                                          }}
+                                          onClick={() => {
+                                            if (chip.action === 'save_search') {
+                                              handleSaveCurrentSearch(msg);
+                                            } else if (chip.action === 'add_favorite' && chip.payload) {
+                                              handleToggleFavoritePlace(chip.payload);
+                                            } else {
+                                              handleUnifiedSearch({ query: chip.query || cleanLabel });
+                                            }
+                                          }}
+                                        >
+                                          {getChipIcon(chip)}
+                                          <span>{cleanLabel}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
 
                             </div>
                           ))}
                       </div>
                     </div>
-
-                    {/* DYNAMIC QUICK START SUGGESTIONS STRIP DIRECTLY ABOVE BOTTOM SEARCH BAR (CENTER ALIGNED) */}
-                    {chatMessages.length <= 1 && (
-                      <div
-                        className="quick-start-bottom-chips-container"
-                        style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 6px 8px 6px',
-                          margin: '0 auto 2px auto',
-                          width: '100%',
-                          maxWidth: '100%',
-                          boxSizing: 'border-box',
-                          flexShrink: 0
-                        }}
-                      >
-                        {getDynamicQuickStartChips().map((chip, cIdx) => (
-                          <button
-                            key={cIdx}
-                            type="button"
-                            className="structured-radius-chip-btn"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              padding: '5px 10px',
-                              background: 'rgba(255, 255, 255, 0.95)',
-                              border: '1px solid rgba(226, 232, 240, 0.95)',
-                              borderRadius: '8px',
-                              boxShadow: '0 2px 5px rgba(0, 43, 91, 0.05)',
-                              fontSize: '11.5px',
-                              fontWeight: 500,
-                              color: '#002B5B',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                              lineHeight: '1.3',
-                              textAlign: lang === 'ar' ? 'right' : 'left',
-                              whiteSpace: 'nowrap',
-                              maxWidth: '100%'
-                            }}
-                            onClick={() => handleUnifiedSearch({ query: chip.query || chip.label })}
-                          >
-                            {getChipIcon(chip)}
-                            <span>{chip.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
 
                     {/* BOTTOM SEARCH INPUT BAR */}
                     <form

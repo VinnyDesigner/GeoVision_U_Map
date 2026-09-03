@@ -39,6 +39,15 @@ const DEFAULT_USERS = [
     password: 'password123',
     role: 'user',
     department: 'Public Portal'
+  },
+  {
+    firstName: 'Phase 5',
+    lastName: 'Test User',
+    username: 'test',
+    email: 'test@geovision.com',
+    password: 'Test@12345',
+    role: 'user',
+    department: 'GeoVision Spatial QA'
   }
 ];
 
@@ -48,11 +57,25 @@ const DEFAULT_USERS = [
 function getRegisteredUsers() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
-      return DEFAULT_USERS;
+    let users = raw ? JSON.parse(raw) : [];
+    
+    // Ensure all default seeded accounts exist
+    let updated = false;
+    for (const def of DEFAULT_USERS) {
+      const exists = users.some(
+        u => (u.email && u.email.toLowerCase() === def.email.toLowerCase()) ||
+             (u.username && u.username.toLowerCase() === def.username.toLowerCase())
+      );
+      if (!exists) {
+        users.push(def);
+        updated = true;
+      }
     }
-    return JSON.parse(raw);
+
+    if (updated || !raw) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    }
+    return users;
   } catch (e) {
     console.error('Error loading users:', e);
     return DEFAULT_USERS;
@@ -312,5 +335,107 @@ export const authService = {
     localStorage.removeItem(STORAGE_KEYS.SESSION);
     sessionStorage.removeItem(STORAGE_KEYS.SESSION);
     return { success: true };
+  },
+
+  logout() {
+    return this.signOut();
+  },
+
+  /**
+   * Helper: Generate a unique per-user storage key
+   */
+  getUserKey(userIdentifier, suffix) {
+    const cleanId = (userIdentifier || 'guest').toLowerCase().trim();
+    return `geovision_user_${cleanId}_${suffix}`;
+  },
+
+  /**
+   * Load saved queries for a specific user
+   */
+  getUserSavedQueries(userIdentifier) {
+    if (!userIdentifier || userIdentifier === 'guest') {
+      return [];
+    }
+    try {
+      const key = this.getUserKey(userIdentifier, 'saved_queries');
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load user saved queries:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Save queries for a specific user
+   */
+  saveUserSavedQueries(userIdentifier, queries) {
+    if (!userIdentifier || userIdentifier === 'guest') return;
+    try {
+      const key = this.getUserKey(userIdentifier, 'saved_queries');
+      localStorage.setItem(key, JSON.stringify(queries || []));
+    } catch (e) {
+      console.error('Failed to save user saved queries:', e);
+    }
+  },
+
+  /**
+   * Load favorites for a specific user
+   */
+  getUserFavorites(userIdentifier) {
+    if (!userIdentifier || userIdentifier === 'guest') {
+      return [];
+    }
+    try {
+      const key = this.getUserKey(userIdentifier, 'favorite_places');
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load user favorites:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Save favorites for a specific user
+   */
+  saveUserFavorites(userIdentifier, favorites) {
+    if (!userIdentifier || userIdentifier === 'guest') return;
+    try {
+      const key = this.getUserKey(userIdentifier, 'favorite_places');
+      localStorage.setItem(key, JSON.stringify(favorites || []));
+    } catch (e) {
+      console.error('Failed to save user favorites:', e);
+    }
+  },
+
+  /**
+   * Load search history for a specific user
+   */
+  getUserSearchHistory(userIdentifier) {
+    if (!userIdentifier || userIdentifier === 'guest') {
+      return [];
+    }
+    try {
+      const key = this.getUserKey(userIdentifier, 'search_history');
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load user search history:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Save search history for a specific user
+   */
+  saveUserSearchHistory(userIdentifier, history) {
+    if (!userIdentifier || userIdentifier === 'guest') return;
+    try {
+      const key = this.getUserKey(userIdentifier, 'search_history');
+      localStorage.setItem(key, JSON.stringify(history || []));
+    } catch (e) {
+      console.error('Failed to save user search history:', e);
+    }
   }
 };

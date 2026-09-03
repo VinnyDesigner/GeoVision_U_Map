@@ -153,6 +153,11 @@ export default function LandingPage({
       if (showToast) {
         showToast(lang === 'ar' ? `مرحباً بك مجدداً، ${result.user.firstName || 'مستخدم جيو فيجن'}!` : `Welcome back, ${result.user.firstName || 'GeoVision User'}!`);
       }
+      setTimeout(() => {
+        if (setIsSignInOpen) setIsSignInOpen(false);
+        if (setShowMap) setShowMap(true);
+        setAuthState('login');
+      }, 750);
     } else {
       setAuthError(result.error);
       setAuthState('login');
@@ -1111,21 +1116,36 @@ export default function LandingPage({
                     {lang === 'ar' ? 'مرحباً بك مجدداً! لقد قمت بتسجيل الدخول بنجاح.' : 'Welcome back! You have successfully logged in.'}
                   </h3>
 
-                  <div className="signin-footer-text" style={{ marginTop: '16px' }}>
-                    <span>{lang === 'ar' ? 'العودة إلى ' : 'Back to '}</span>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
+                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="signin-submit-btn"
+                      onClick={() => {
                         if (setIsSignInOpen) setIsSignInOpen(false);
-                        if (setShowMap) setShowMap(false);
+                        if (setShowMap) setShowMap(true);
                         setAuthState('login');
                       }}
-                      className="signin-signup-link"
-                      style={{ fontWeight: '700', textDecoration: 'underline' }}
                     >
-                      {lang === 'ar' ? 'الصفحة الرئيسية' : 'Home Page'}
-                    </a>
+                      <span>{lang === 'ar' ? 'متابعة البحث على الخريطة' : 'Continue Search on Map'}</span>
+                      {lang === 'ar' ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                    </button>
+
+                    <div className="signin-footer-text">
+                      <span>{lang === 'ar' ? 'أو العودة إلى ' : 'Or return to '}</span>
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (setIsSignInOpen) setIsSignInOpen(false);
+                          if (setShowMap) setShowMap(false);
+                          setAuthState('login');
+                        }}
+                        className="signin-signup-link"
+                        style={{ fontWeight: '700', textDecoration: 'underline' }}
+                      >
+                        {lang === 'ar' ? 'الصفحة الرئيسية' : 'Home Page'}
+                      </a>
+                    </div>
                   </div>
                 </div>
               )}
