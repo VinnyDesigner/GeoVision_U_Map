@@ -12,7 +12,7 @@ export const CATEGORY_TREE = [
   {
     id: 'transportation',
     name: 'Transport',
-    subcategories: ['Bus Stations', 'Metro Lines', 'Taxi Stands', 'Parking Lots']
+    subcategories: ['Bus Stations', 'Metro Lines', 'Taxi Stands', 'Parking Lots', 'Airports', 'Seaports', 'Petrol Stations', 'Vehicle Inspection Centers']
   },
   {
     id: 'environment',

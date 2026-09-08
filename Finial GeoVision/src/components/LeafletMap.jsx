@@ -5,6 +5,7 @@ import { ABU_DHABI_SPATIAL_DATASET } from '../services/spatialSearchService.js';
 import { GIS_CATEGORY_COLORS, getGisCategorySymbolSvg, getGisPinSvg } from '../utils/gisSymbols.js';
 
 export default function LeafletMap({
+  userLocation = null,
   activeProject,
   layers,
   selectedLevel,
@@ -29,17 +30,23 @@ export default function LeafletMap({
   setActiveDrawTool,
   onDrawnAreaComplete,
   onClearDrawnArea,
-  restoredDrawnGeometry = null
+  restoredDrawnGeometry = null,
+  activeRoute = null,
+  isNavigating = false,
+  navStepIndex = 0
 }) {
   const mapRef = useRef(null);
   const leafletInstance = useRef(null);
+  const userLocationGroupRef = useRef(null);
   const markersGroupRef = useRef(null);
   const boundaryGroupRef = useRef(null);
   const volumeGroupRef = useRef(null);
   const searchMarkersGroupRef = useRef(null);
   const selectedGraphicsLayerRef = useRef(null);
   const drawnShapesGroupRef = useRef(null);
+  const routeLayerGroupRef = useRef(null);
   const markersMapRef = useRef({});
+  const hasAutoCenteredUserLocRef = useRef(false);
 
   // Stable refs to prevent re-render re-triggering map animations
   const onFeatureClickRef = useRef(onFeatureClick);
@@ -77,12 +84,14 @@ export default function LeafletMap({
     leafletInstance.current = map;
     if (mapInstanceRef) mapInstanceRef.current = map;
 
+    userLocationGroupRef.current = L.layerGroup().addTo(map);
     markersGroupRef.current = L.layerGroup().addTo(map);
     boundaryGroupRef.current = L.layerGroup().addTo(map);
     volumeGroupRef.current = L.layerGroup().addTo(map);
     searchMarkersGroupRef.current = L.layerGroup().addTo(map);
     selectedGraphicsLayerRef.current = L.layerGroup().addTo(map);
     drawnShapesGroupRef.current = L.layerGroup().addTo(map);
+    routeLayerGroupRef.current = L.layerGroup().addTo(map);
 
     map.on('mousemove', (e) => {
       setHoveredCoords({
@@ -145,8 +154,10 @@ export default function LeafletMap({
 
     return () => {
       resizeObserver.disconnect();
+      if (userLocationGroupRef.current) userLocationGroupRef.current.clearLayers();
       if (searchMarkersGroupRef.current) searchMarkersGroupRef.current.clearLayers();
       if (markersGroupRef.current) markersGroupRef.current.clearLayers();
+      userLocationGroupRef.current = null;
       searchMarkersGroupRef.current = null;
       markersGroupRef.current = null;
       boundaryGroupRef.current = null;
@@ -157,6 +168,48 @@ export default function LeafletMap({
       if (mapInstanceRef) mapInstanceRef.current = null;
     };
   }, []);
+
+  // Dedicated Effect: Render User Location Pulsing Marker & Center on map opening
+  useEffect(() => {
+    const map = leafletInstance.current;
+    if (!map) return;
+
+    if (!userLocationGroupRef.current) {
+      userLocationGroupRef.current = L.layerGroup().addTo(map);
+    }
+    const userGroup = userLocationGroupRef.current;
+    userGroup.clearLayers();
+
+    if (userLocation && userLocation.lat != null && userLocation.lon != null) {
+      const lat = parseFloat(userLocation.lat);
+      const lon = parseFloat(userLocation.lon);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const pulseHtml = `
+          <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); pointer-events: auto;">
+            <div style="position: absolute; width: 28px; height: 28px; border-radius: 50%; background: rgba(29, 104, 242, 0.30); animation: geovisionPulseRing 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;"></div>
+            <div style="position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #1D68F2; border: 2.5px solid #FFFFFF; box-shadow: 0 0 10px rgba(29, 104, 242, 0.75);"></div>
+          </div>
+        `;
+        const pulseIcon = L.divIcon({
+          html: pulseHtml,
+          className: 'geovision-user-pulse-container',
+          iconSize: [0, 0]
+        });
+
+        const userMarker = L.marker([lat, lon], { icon: pulseIcon, zIndexOffset: 1000 }).addTo(userGroup);
+        userMarker.bindTooltip(userLocation.name || userLocation.arabicName || "Current Location", {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -10]
+        });
+
+        if (!hasAutoCenteredUserLocRef.current) {
+          hasAutoCenteredUserLocRef.current = true;
+          map.flyTo([lat, lon], 15, { duration: 1.5 });
+        }
+      }
+    }
+  }, [userLocation]);
 
   // Update base tile layer on theme or activeBasemap change
   useEffect(() => {
@@ -610,9 +663,9 @@ export default function LeafletMap({
     const boundaryGroup = boundaryGroupRef.current;
     if (!markersGroup || !boundaryGroup) return;
 
-    // 1. Initial Abu Dhabi placeholder marker (only when no search results and no operational layers active)
+    // 1. Initial Abu Dhabi placeholder marker (only when no user location, no search results and no operational layers active)
     markersGroup.clearLayers();
-    if (!activeSearchResults?.length && !layers.buildings3D && !layers.projectBoundary && !layers.heatmapOverlay) {
+    if (!userLocation && !activeSearchResults?.length && !layers.buildings3D && !layers.projectBoundary && !layers.heatmapOverlay) {
       const redPinHtml = `
         <div style="
           position: relative;
@@ -898,6 +951,192 @@ export default function LeafletMap({
       activeEl.classList.add('active-pin');
     }
   }, [selectedLocation]);
+
+  // Handle Active Road Route Polyline, Navigation Beacon & Bounds Fitting
+  useEffect(() => {
+    const map = leafletInstance.current;
+    if (!map || !routeLayerGroupRef.current) return;
+
+    routeLayerGroupRef.current.clearLayers();
+
+    if (!activeRoute || !activeRoute.coordinates || activeRoute.coordinates.length < 2) {
+      return;
+    }
+
+    const { coordinates, origin, destination, distanceText, durationText, modeObj } = activeRoute;
+    const isDark = theme === 'dark';
+
+    // 1. Background Halo / Glow Line (Enhances readability over any basemap)
+    const haloColor = isDark ? 'rgba(56, 189, 248, 0.40)' : 'rgba(29, 104, 242, 0.28)';
+    L.polyline(coordinates, {
+      color: haloColor,
+      weight: 11,
+      opacity: 0.85,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: false
+    }).addTo(routeLayerGroupRef.current);
+
+    // 2. Main Crisp Road Route Line
+    const mainColor = isDark ? '#38BDF8' : '#1D68F2';
+    L.polyline(coordinates, {
+      color: mainColor,
+      weight: 5.5,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: true,
+      dashArray: activeRoute.isFallback ? '8, 8' : undefined
+    }).addTo(routeLayerGroupRef.current);
+
+    // 3. Interactive Route Badge near route center
+    if (durationText || distanceText) {
+      const midIdx = Math.floor(coordinates.length / 2);
+      const midPoint = coordinates[midIdx];
+      const summaryLabel = `${durationText ? `${durationText} ` : ''}(${distanceText})`;
+      
+      const badgeIcon = L.divIcon({
+        className: 'geovision-route-badge-container',
+        html: `
+          <div class="geovision-map-route-badge ${isDark ? 'dark' : 'light'}">
+            <span class="route-badge-icon">${modeObj?.id === 'walk' ? '🚶' : modeObj?.id === 'cycle' ? '🚲' : modeObj?.id === 'bike' ? '🏍️' : modeObj?.id === 'transit' ? '🚌' : modeObj?.id === 'train' ? '🚆' : '🚗'}</span>
+            <span class="route-badge-text">${summaryLabel}</span>
+          </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+
+      L.marker(midPoint, { icon: badgeIcon, interactive: false, zIndexOffset: 2800 }).addTo(routeLayerGroupRef.current);
+    }
+
+    // 4. Origin Start Marker (Pulsing Green / Blue Dot)
+    if (origin && typeof origin.lat === 'number' && typeof origin.lon === 'number') {
+      const originIcon = L.divIcon({
+        className: 'geovision-route-endpoint-icon origin',
+        html: `
+          <div class="route-endpoint-pin origin-pin">
+            <div class="route-pin-pulse"></div>
+            <div class="route-pin-core origin-core"></div>
+          </div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      const originMarker = L.marker([origin.lat, origin.lon], {
+        icon: originIcon,
+        zIndexOffset: 2500
+      }).addTo(routeLayerGroupRef.current);
+
+      originMarker.bindTooltip(origin.name || 'Start / My Location', {
+        direction: 'top',
+        offset: [0, -14],
+        className: 'geovision-pin-tooltip'
+      });
+    }
+
+    // 5. Destination End Marker (Checkered Flag / Destination Pin)
+    if (destination && typeof destination.lat === 'number' && typeof destination.lon === 'number') {
+      const destIcon = L.divIcon({
+        className: 'geovision-route-endpoint-icon dest',
+        html: `
+          <div class="route-endpoint-pin dest-pin">
+            <div class="route-pin-flag">🏁</div>
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 24]
+      });
+
+      const destMarker = L.marker([destination.lat, destination.lon], {
+        icon: destIcon,
+        zIndexOffset: 2600
+      }).addTo(routeLayerGroupRef.current);
+
+      destMarker.bindTooltip(destination.title || 'Destination', {
+        direction: 'top',
+        offset: [0, -26],
+        className: 'geovision-pin-tooltip'
+      });
+    }
+
+    // Expose global route overview fitter
+    window.__geoVisionFitRouteOverview = () => {
+      if (leafletInstance.current && coordinates && coordinates.length > 1) {
+        try {
+          const routeBounds = L.latLngBounds(coordinates);
+          leafletInstance.current.fitBounds(routeBounds, {
+            padding: [90, 90],
+            maxZoom: 15.5,
+            animate: true,
+            duration: 0.8
+          });
+        } catch (e) {
+          console.warn('[LeafletMap] fitRouteOverview error:', e);
+        }
+      }
+    };
+
+    // 6. Camera & Active Step Marker handling
+    if (isNavigating && activeRoute.steps && activeRoute.steps.length > 0) {
+      const activeStep = activeRoute.steps[navStepIndex] || activeRoute.steps[0];
+      const stepPos = activeStep.location || (origin ? [origin.lat, origin.lon] : null);
+
+      if (stepPos) {
+        const stepIcon = L.divIcon({
+          className: 'geovision-nav-step-marker',
+          html: `
+            <div class="nav-step-beacon">
+              <div class="nav-step-pulse"></div>
+              <div class="nav-step-icon-core">📍</div>
+            </div>
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        });
+
+        L.marker(stepPos, { icon: stepIcon, zIndexOffset: 3000 }).addTo(routeLayerGroupRef.current);
+
+        // If user is on step 0 (initial route), fit bounds to overview; otherwise flyTo active step
+        if (navStepIndex === 0) {
+          try {
+            const routeBounds = L.latLngBounds(coordinates);
+            map.fitBounds(routeBounds, {
+              padding: [90, 90],
+              maxZoom: 15.5,
+              animate: true,
+              duration: 0.8
+            });
+          } catch (e) {
+            console.warn('[LeafletMap] fitBounds error on initial navigation:', e);
+          }
+        } else {
+          try {
+            map.flyTo(stepPos, 16.2, {
+              animate: true,
+              duration: 0.8
+            });
+          } catch (e) {
+            console.warn('[LeafletMap] flyTo navigation step error:', e);
+          }
+        }
+      }
+    } else {
+      // Smoothly Fit Map Bounds to the Complete Route Overview
+      try {
+        const routeBounds = L.latLngBounds(coordinates);
+        map.fitBounds(routeBounds, {
+          padding: [90, 90],
+          maxZoom: 15.5,
+          animate: true,
+          duration: 0.8
+        });
+      } catch (e) {
+        console.warn('[LeafletMap] fitBounds error on route overview:', e);
+      }
+    }
+  }, [activeRoute, theme, isNavigating, navStepIndex]);
 
   return <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: '100%', zIndex: 1 }} />;
 }

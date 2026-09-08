@@ -19,7 +19,6 @@ export default function GeoVisionGradientIcon({ src, size = 18, alt = 'icon', st
         maskRepeat: 'no-repeat',
         WebkitMaskPosition: 'center',
         maskPosition: 'center',
-        background: 'linear-gradient(180deg, #004B87 0%, #002B5B 100%)',
         flexShrink: 0,
         transition: 'background 0.25s ease, transform 0.2s ease',
         ...style

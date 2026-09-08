@@ -99,6 +99,65 @@ function saveUser(user) {
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
 }
 
+const DEFAULT_SEARCH_HISTORY = [
+  {
+    id: 101,
+    text: 'Education facilities in Abu Dhabi',
+    category: 'Education',
+    resultsCount: 8,
+    timestamp: 'Just now',
+    queryState: { query: 'Education facilities in Abu Dhabi', category: 'Education' }
+  },
+  {
+    id: 102,
+    text: 'Find places within drawn area',
+    category: 'Drawn Area',
+    resultsCount: 3,
+    timestamp: '5m ago',
+    queryState: { query: 'Find places within drawn area', category: 'Drawn Area', spatialType: 'draw' }
+  },
+  {
+    id: 103,
+    text: 'Show public facilities near Khalifa City',
+    category: 'Government Services',
+    resultsCount: 12,
+    timestamp: '15m ago',
+    queryState: { query: 'Show public facilities near Khalifa City', category: 'Government Services' }
+  },
+  {
+    id: 104,
+    text: 'Which infrastructure centers are closest?',
+    category: 'Infrastructure',
+    resultsCount: 6,
+    timestamp: '1h ago',
+    queryState: { query: 'Which infrastructure centers are closest?', category: 'Infrastructure' }
+  },
+  {
+    id: 105,
+    text: 'Healthcare and emergency clinics',
+    category: 'Healthcare',
+    resultsCount: 9,
+    timestamp: '2h ago',
+    queryState: { query: 'Healthcare and emergency clinics', category: 'Healthcare' }
+  },
+  {
+    id: 106,
+    text: 'Parks and green spaces in Yas Island',
+    category: 'Parks',
+    resultsCount: 5,
+    timestamp: 'Yesterday',
+    queryState: { query: 'Parks and green spaces in Yas Island', category: 'Parks' }
+  },
+  {
+    id: 107,
+    text: 'Bus stations and transit routes',
+    category: 'Transport',
+    resultsCount: 14,
+    timestamp: 'Yesterday',
+    queryState: { query: 'Bus stations and transit routes', category: 'Transport' }
+  }
+];
+
 export const authService = {
   /**
    * Load active session on application startup
@@ -419,10 +478,15 @@ export const authService = {
     try {
       const key = this.getUserKey(userIdentifier, 'search_history');
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : [];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      localStorage.setItem(key, JSON.stringify(DEFAULT_SEARCH_HISTORY));
+      return DEFAULT_SEARCH_HISTORY;
     } catch (e) {
       console.error('Failed to load user search history:', e);
-      return [];
+      return DEFAULT_SEARCH_HISTORY;
     }
   },
 
@@ -437,5 +501,36 @@ export const authService = {
     } catch (e) {
       console.error('Failed to save user search history:', e);
     }
+  },
+
+  /**
+   * Load chat sessions for a specific user or guest
+   */
+  getUserChatSessions(userIdentifier) {
+    try {
+      const key = userIdentifier && userIdentifier !== 'guest'
+        ? this.getUserKey(userIdentifier, 'chat_sessions')
+        : 'geovision_guest_chat_sessions';
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load user chat sessions:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Save chat sessions for a specific user or guest
+   */
+  saveUserChatSessions(userIdentifier, sessions) {
+    try {
+      const key = userIdentifier && userIdentifier !== 'guest'
+        ? this.getUserKey(userIdentifier, 'chat_sessions')
+        : 'geovision_guest_chat_sessions';
+      localStorage.setItem(key, JSON.stringify(sessions || []));
+    } catch (e) {
+      console.error('Failed to save user chat sessions:', e);
+    }
   }
 };
+

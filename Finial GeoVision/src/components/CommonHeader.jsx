@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Bookmark, Menu, X, LogOut } from 'lucide-react';
+import { Bookmark, Heart, Menu, X, LogOut } from 'lucide-react';
 import leftLogo from '../assets/left.png';
 import rightLogo from '../assets/right.png';
+import leftLogoDark from '../assets/left_dark.png';
+import rightLogoDark from '../assets/right_dark.png';
 import lagIcon from '../assets/lag.svg';
 import historyIcon from '../assets/History.svg';
 import feedbackIcon from '../assets/share feedback.svg';
@@ -48,12 +50,15 @@ export default function CommonHeader({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isGreyBasemap = activeBasemap === 'light';
+  const currentLeftLogo = theme === 'dark' ? leftLogoDark : leftLogo;
+  const currentRightLogo = theme === 'dark' ? rightLogoDark : rightLogo;
 
   const handleSignOutClick = () => {
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
-    setShowMap(false);
-    if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+    if (!showMap) {
+      if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+    }
     if (setIsSignInOpen) setIsSignInOpen(true);
     if (setAuthState) {
       setAuthState(isLoggedIn ? 'signOutConfirm' : 'login');
@@ -97,7 +102,7 @@ export default function CommonHeader({
           if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
         }}
       >
-        <img src={leftLogo} alt="Department of Government Enablement" style={{ height: '38px', objectFit: 'contain' }} />
+        <img src={currentLeftLogo} alt="Department of Government Enablement" style={{ height: '38px', objectFit: 'contain' }} />
       </a>
 
       {/* Center Navigation (Desktop) */}
@@ -174,11 +179,11 @@ export default function CommonHeader({
                     setShowMap(true);
                     if (setIsSidebarOpen) setIsSidebarOpen(true);
                     if (setActiveTab) setActiveTab('collections');
-                    showToast(lang === 'ar' ? 'تم فتح مجموعاتي' : "My Collections Opened"); 
+                    showToast(lang === 'ar' ? 'تم فتح المفضلة' : "Favorites Opened"); 
                   }}
                 >
-                  <Bookmark size={16} style={{ color: '#022E5B', flexShrink: 0 }} />
-                  <span>{t.collections}</span>
+                  <Heart size={16} style={{ color: theme === 'dark' ? '#ffffff' : '#022E5B', flexShrink: 0 }} />
+                  <span>{t.favorites || t.collections}</span>
                 </button>
               )}
               <button className="profile-item" onClick={() => { setIsProfileOpen(false); showToast(lang === 'ar' ? 'تم فتح نافذة الملاحظات والتقييم' : "Share Feedback modal opened"); }}>
@@ -201,14 +206,14 @@ export default function CommonHeader({
         </div>
 
         <div className="landing-spatial-logo">
-          <img src={rightLogo} alt="Abu Dhabi Spatial Data" style={{ height: '42px', objectFit: 'contain' }} />
+          <img src={currentRightLogo} alt="Abu Dhabi Spatial Data" style={{ height: '42px', objectFit: 'contain' }} />
         </div>
       </div>
 
       {/* Right Side Group for Mobile: Abu Dhabi Spatial Data Logo + Hamburger Button */}
       <div className="mobile-header-right-group">
         <a href="#" className="landing-logo-right mobile-only-logo" onClick={(e) => { e.preventDefault(); setShowMap(false); }}>
-          <img src={rightLogo} alt="Abu Dhabi Spatial Data" style={{ height: '28px', objectFit: 'contain' }} />
+          <img src={currentRightLogo} alt="Abu Dhabi Spatial Data" style={{ height: '28px', objectFit: 'contain' }} />
         </a>
 
         <button 
@@ -216,7 +221,7 @@ export default function CommonHeader({
           onClick={() => setIsMobileMenuOpen(prev => !prev)}
           aria-label="Toggle navigation menu"
         >
-          {isMobileMenuOpen ? <X size={14} style={{ color: '#063360' }} /> : <Menu size={14} style={{ color: '#063360' }} />}
+          {isMobileMenuOpen ? <X size={14} style={{ color: theme === 'dark' ? '#ffffff' : '#063360' }} /> : <Menu size={14} style={{ color: theme === 'dark' ? '#ffffff' : '#063360' }} />}
         </button>
       </div>
 
@@ -296,17 +301,17 @@ export default function CommonHeader({
 
               {isLoggedIn && (
                 <button 
-                  className="mobile-menu-btn"
+                  className="mobile-menu-btn" 
                   onClick={() => { 
                     setIsMobileMenuOpen(false); 
                     setShowMap(true); 
                     if (setIsSidebarOpen) setIsSidebarOpen(true);
                     if (setActiveTab) setActiveTab('collections');
-                    showToast(lang === 'ar' ? 'تم فتح مجموعاتي' : "My Collections Opened"); 
+                    showToast(lang === 'ar' ? 'تم فتح المفضلة' : "Favorites Opened"); 
                   }}
                 >
-                  <Bookmark size={18} style={{ color: '#022E5B' }} />
-                  <span>{t.collections}</span>
+                  <Heart size={18} style={{ color: theme === 'dark' ? '#ffffff' : '#022E5B' }} />
+                  <span>{t.favorites || t.collections}</span>
                 </button>
               )}
 
