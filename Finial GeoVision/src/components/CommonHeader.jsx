@@ -14,6 +14,7 @@ import GeoVisionGradientIcon from './GeoVisionGradientIcon.jsx';
 import { authService } from '../services/authService.js';
 
 import homeSvg from '../assets/Icons 1/Icons/home.svg';
+import locationSvg from '../assets/Icons 1/Icons/location.svg';
 import aboutUsSvg from '../assets/Icons 1/Icons/about us.svg';
 import arabicSvg from '../assets/Icons 1/Icons/Arabic.svg';
 import lightThemeSvg from '../assets/Icons 1/Icons/Light theme.svg';
@@ -122,6 +123,18 @@ export default function CommonHeader({
           }}
         >
           <GeoVisionGradientIcon src={homeSvg} size={13} alt="Home" /> {t.home}
+        </button>
+        <button 
+          className={`landing-nav-item ${showMap && !isSignInOpen && !isAboutUsOpen ? 'active' : ''}`} 
+          onClick={() => { 
+            setShowMap(true); 
+            if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+            if (setIsSignInOpen) setIsSignInOpen(false); 
+            if (setAuthState) setAuthState('login'); 
+            if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
+          }}
+        >
+          <GeoVisionGradientIcon src={locationSvg} size={13} alt="Map view" /> {t.mapView || 'Map view'}
         </button>
         <button 
           className={`landing-nav-item ${!showMap && isAboutUsOpen ? 'active' : ''}`} 
@@ -247,6 +260,19 @@ export default function CommonHeader({
               >
                 <GeoVisionGradientIcon src={homeSvg} size={18} alt="Home" />
                 <span>{t.home}</span>
+              </button>
+
+              <button 
+                className={`mobile-menu-btn ${showMap && !isAboutUsOpen ? 'active' : ''}`}
+                onClick={() => { 
+                  setShowMap(true); 
+                  if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+                  if (setIsSignInOpen) setIsSignInOpen(false);
+                  setIsMobileMenuOpen(false); 
+                }}
+              >
+                <GeoVisionGradientIcon src={locationSvg} size={18} alt="Map view" />
+                <span>{t.mapView || 'Map view'}</span>
               </button>
 
               <button 

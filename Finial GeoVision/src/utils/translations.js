@@ -1,5 +1,6 @@
 export const getTranslations = (lang = 'en') => ({
   home: lang === 'ar' ? 'الرئيسية' : 'Home',
+  mapView: lang === 'ar' ? 'عرض الخريطة' : 'Map view',
   aboutUs: lang === 'ar' ? 'من نحن' : 'About Us',
   allCategories: lang === 'ar' ? 'جميع الفئات' : 'All Categories',
   subTitle: lang === 'ar' ? 'اكتشف المزيد، اسأل بذكاء، استكشف أبوظبي' : 'Discover More, Ask Smarter, Explore Abu Dhabi',
