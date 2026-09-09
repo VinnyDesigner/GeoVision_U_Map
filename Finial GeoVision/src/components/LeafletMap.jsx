@@ -330,7 +330,7 @@ export default function LeafletMap({
       if (activeDrawTool === 'circle') {
         if (drawPoints.length === 0) {
           drawPoints.push(latlng);
-          if (showToast) showToast("Click outer radius to finish Circle & execute query");
+          if (showToast) showToast("Click outer radius to finish Circle boundary");
         } else {
           const center = drawPoints[0];
           const radius = map.distance(center, latlng);
@@ -465,7 +465,7 @@ export default function LeafletMap({
       if (activeDrawTool === 'polygon') {
         drawPoints.push(latlng);
         if (drawPoints.length === 1) {
-          if (showToast) showToast("Click next vertices. Double-click to close Polygon & query");
+          if (showToast) showToast("Click next vertices. Double-click to close Polygon boundary");
         } else if (drawPoints.length >= 3) {
           clearPreview();
           previewLayer = L.polygon(drawPoints, {

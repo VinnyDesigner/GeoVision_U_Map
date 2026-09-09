@@ -1319,6 +1319,15 @@ input:checked+.slider:before {
   transform: translateY(-1px);
 }
 
+.landing-nav-item:not(.active):hover .geovision-gradient-icon-wrapper {
+  background: linear-gradient(180deg, #004B87 0%, #002B5B 100%) !important;
+}
+
+.landing-nav-item:not(.active):hover svg {
+  color: #063360 !important;
+  stroke: #063360 !important;
+}
+
 .landing-nav-item.active {
   opacity: 1 !important;
   border-radius: 8px !important;
@@ -4856,6 +4865,13 @@ body.dark-theme .geovision-gradient-icon-wrapper {
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
 }
 
+[data-theme="dark"] .print-dropdown-select option,
+.dark-theme .print-dropdown-select option,
+.dark .print-dropdown-select option {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+}
+
 [data-theme="dark"] .print-dropdown-chevron,
 .dark-theme .print-dropdown-chevron,
 .dark .print-dropdown-chevron {
@@ -5200,6 +5216,198 @@ body.dark-theme .geovision-gradient-icon-wrapper {
   color: #004B87 !important;
   font-weight: 700 !important;
   box-shadow: 0 4px 12px rgba(0, 75, 135, 0.22), inset 0 1px 2px #ffffff !important;
+}
+
+/* ==========================================================================
+   ALL CATEGORIES FLOATING POPOVER PANEL (MATCHING REFERENCE UI)
+   ========================================================================== */
+
+.categories-popover-panel {
+  width: 290px !important;
+  height: 380px !important;
+  max-height: calc(100vh - 150px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  box-sizing: border-box !important;
+}
+
+.categories-popover-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.categories-popover-title {
+  font-family: 'Outfit', 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #0F172A !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-theme="dark"] .categories-popover-title,
+.dark-theme .categories-popover-title,
+.dark .categories-popover-title {
+  color: #FFFFFF !important;
+}
+
+.categories-popover-close-btn {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(0, 75, 135, 0.35) !important;
+  border-radius: 7px !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  color: #004B87 !important;
+  box-shadow: 0 2px 6px rgba(0, 43, 91, 0.08) !important;
+  transition: all 0.2s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.categories-popover-close-btn:hover {
+  background: #FFFFFF !important;
+  border-color: #004B87 !important;
+  transform: scale(1.04) !important;
+}
+
+[data-theme="dark"] .categories-popover-close-btn,
+.dark-theme .categories-popover-close-btn,
+.dark .categories-popover-close-btn {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: #38BDF8 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-theme="dark"] .categories-popover-close-btn:hover,
+.dark-theme .categories-popover-close-btn:hover,
+.dark .categories-popover-close-btn:hover {
+  background: rgba(56, 189, 248, 0.20) !important;
+  border-color: #38BDF8 !important;
+}
+
+.categories-popover-search-wrap {
+  position: relative !important;
+  width: 100% !important;
+  margin-bottom: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.categories-popover-search-input {
+  width: 100% !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(203, 213, 225, 0.9) !important;
+  background: #FFFFFF !important;
+  font-size: 12.5px !important;
+  color: #0F172A !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  transition: all 0.15s ease !important;
+}
+
+.categories-popover-search-input:focus {
+  border-color: #1D68F2 !important;
+  box-shadow: 0 0 0 2px rgba(29, 104, 242, 0.15) !important;
+}
+
+[data-theme="dark"] .categories-popover-search-input,
+.dark-theme .categories-popover-search-input,
+.dark .categories-popover-search-input {
+  background: rgba(14, 34, 70, 0.50) !important;
+  border: 1px solid rgba(255, 255, 255, 0.20) !important;
+  color: #FFFFFF !important;
+}
+
+.categories-popover-scroll {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding-right: 3px !important;
+}
+
+.categories-popover-scroll::-webkit-scrollbar {
+  width: 5px !important;
+}
+
+.categories-popover-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.categories-popover-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5) !important;
+  border-radius: 4px !important;
+}
+
+.categories-popover-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7) !important;
+}
+
+.categories-popover-card-item {
+  flex-shrink: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  transition: all 0.2s ease !important;
+}
+
+.categories-popover-card-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 8px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+}
+
+.categories-popover-subcat-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 4px 8px 8px 8px !important;
+  box-sizing: border-box !important;
+}
+
+.categories-popover-subcat-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 28px !important;
+  padding: 6px 8px !important;
+  border-radius: 6px !important;
+  font-size: 12.5px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.categories-popover-subcat-row:hover {
+  background: rgba(241, 245, 249, 0.8) !important;
+}
+
+[data-theme="dark"] .categories-popover-subcat-row:hover,
+.dark-theme .categories-popover-subcat-row:hover,
+.dark .categories-popover-subcat-row:hover {
+  background: rgba(30, 58, 102, 0.4) !important;
 }
 
 /* Basemap List Popover (Matching Reference Image) */
@@ -7808,7 +8016,6 @@ body.dark-theme .geovision-gradient-icon-wrapper {
 .map-glass-pill-btn:hover .geovision-gradient-icon-wrapper,
 .map-glass-icon-btn.active .geovision-gradient-icon-wrapper,
 .landing-nav-item.active .geovision-gradient-icon-wrapper,
-.landing-nav-item:hover .geovision-gradient-icon-wrapper,
 .landing-lang-btn:hover .geovision-gradient-icon-wrapper,
 .landing-icon-control:hover .geovision-gradient-icon-wrapper,
 .search-history-toggle-btn:hover .geovision-gradient-icon-wrapper {
@@ -12805,6 +13012,8 @@ body[dir="rtl"],
   grid-template-columns: 360px 1fr;
   overflow: hidden;
   box-sizing: border-box;
+  min-height: 0;
+  min-width: 0;
 }
 
 .print-modal-config-pane {
@@ -12812,10 +13021,14 @@ body[dir="rtl"],
   border-right: 1px solid #E2E8F0;
   padding: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 18px;
   box-sizing: border-box;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
 }
 
 [dir="rtl"] .print-modal-config-pane {
@@ -12827,6 +13040,10 @@ body[dir="rtl"],
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .print-config-label {
@@ -12836,18 +13053,29 @@ body[dir="rtl"],
   font-size: 13px;
   font-weight: 600;
   color: #002B5B;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Custom Styled Dropdowns Matching GeoVision AI Theme */
 .print-select-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
+  overflow: hidden;
 }
 
 .print-dropdown-select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 34px 10px 14px;
   border-radius: 10px;
   background: #FFFFFF;
@@ -12863,6 +13091,19 @@ body[dir="rtl"],
   -moz-appearance: none;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  display: block;
+}
+
+.print-dropdown-select option {
+  max-width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #002B5B;
+  background: #FFFFFF;
+  padding: 8px 12px;
 }
 
 [dir="rtl"] .print-dropdown-select {

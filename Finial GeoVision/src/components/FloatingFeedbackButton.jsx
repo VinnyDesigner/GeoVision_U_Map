@@ -116,19 +116,20 @@ export default function FloatingFeedbackButton({
           }}
         >
           <div
+            className="floating-feedback-icon-box"
             style={{
               width: '22px',
               height: '22px',
               borderRadius: '6px',
               background: isDark
-                ? 'linear-gradient(135deg, #1D68F2 0%, #004B87 100%)'
-                : '#FFFFFF',
+                ? 'linear-gradient(135deg, #1D68F2 0%, #1D68F2 100%)'
+                : 'linear-gradient(180deg, #004B87 0%, #002B5B 100%)',
               border: isDark
-                ? '1px solid rgba(255, 255, 255, 0.25)'
-                : '1px solid rgba(186, 230, 253, 0.6)',
+                ? '1px solid rgba(255, 255, 255, 0.30)'
+                : '1px solid rgba(0, 75, 135, 0.35)',
               boxShadow: isDark
-                ? '0 2px 8px rgba(29, 104, 242, 0.45)'
-                : '0 1.5px 5px rgba(0, 43, 91, 0.12)',
+                ? '0 2px 10px rgba(29, 104, 242, 0.50)'
+                : '0 1.5px 5px rgba(0, 43, 91, 0.20)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -145,7 +146,8 @@ export default function FloatingFeedbackButton({
                 fontWeight: 850,
                 letterSpacing: '1.2px',
                 lineHeight: '1',
-                color: isDark ? '#FFFFFF' : '#215A9E',
+                color: '#FFFFFF',
+                WebkitTextFillColor: '#FFFFFF',
                 marginLeft: '1.2px',
                 fontFamily: "'Segoe UI', Roboto, 'Inter', -apple-system, sans-serif"
               }}
@@ -158,7 +160,8 @@ export default function FloatingFeedbackButton({
                 fontWeight: 850,
                 lineHeight: '0.6',
                 marginTop: '-1px',
-                color: isDark ? '#FFFFFF' : '#215A9E',
+                color: '#FFFFFF',
+                WebkitTextFillColor: '#FFFFFF',
                 fontFamily: "'Segoe UI', Roboto, 'Inter', -apple-system, sans-serif"
               }}
             >

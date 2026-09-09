@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Shield,
   Eye,
+  EyeOff,
   HelpCircle,
   BarChart2,
   Map,
@@ -979,6 +980,106 @@ function App() {
     return items;
   };
 
+  // Helper for category count badge colors matching reference design
+  const getCategoryBadgeStyle = (catName, isExpanded, isDark) => {
+    const catColor = GIS_CATEGORY_COLORS[catName] || '#1D68F2';
+    if (isExpanded) {
+      return {
+        background: isDark ? `${catColor}35` : '#DBEAFE',
+        color: isDark ? '#93C5FD' : '#1D4ED8',
+        border: isDark ? `1px solid ${catColor}60` : '1px solid #BFDBFE'
+      };
+    }
+    if (isDark) {
+      return {
+        background: `${catColor}25`,
+        color: catColor,
+        border: `1px solid ${catColor}50`
+      };
+    }
+    const lightBadgeStyles = {
+      Education: { bg: '#DBEAFE', text: '#1D4ED8', border: '#BFDBFE' },
+      Healthcare: { bg: '#D1FAE5', text: '#059669', border: '#A7F3D0' },
+      Transport: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
+      Transportation: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
+      Environment: { bg: '#D1FAE5', text: '#059669', border: '#A7F3D0' },
+      'Government Services': { bg: '#EDE9FE', text: '#6366F1', border: '#DDD6FE' },
+      Government: { bg: '#EDE9FE', text: '#6366F1', border: '#DDD6FE' },
+      Tourism: { bg: '#E0F2FE', text: '#0284C7', border: '#BAE6FD' },
+      Infrastructure: { bg: '#FFEDD5', text: '#EA580C', border: '#FED7AA' },
+      Housing: { bg: '#F3E8FF', text: '#9333EA', border: '#E9D5FF' },
+      'Public Safety': { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' },
+      Utilities: { bg: '#FEF9C3', text: '#CA8A04', border: '#FEF08A' },
+      Climate: { bg: '#E0F2FE', text: '#0284C7', border: '#BAE6FD' },
+      Construction: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
+      Energy: { bg: '#FEF9C3', text: '#CA8A04', border: '#FEF08A' },
+      Parks: { bg: '#D1FAE5', text: '#059669', border: '#A7F3D0' },
+      Agriculture: { bg: '#ECFCCB', text: '#65A30D', border: '#D9F99D' },
+      Employment: { bg: '#EEF2FF', text: '#4F46E5', border: '#C7D2FE' }
+    };
+    const curated = lightBadgeStyles[catName];
+    if (curated) {
+      return {
+        background: curated.bg,
+        color: curated.text,
+        border: `1px solid ${curated.border}`
+      };
+    }
+    return {
+      background: `${catColor}15`,
+      color: catColor,
+      border: `1px solid ${catColor}30`
+    };
+  };
+
+  // State for toggling operational GIS layers visibility
+  const [disabledLayers, setDisabledLayers] = useState(new Set());
+
+  const toggleLayerCategory = (catId) => {
+    setDisabledLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) {
+        next.delete(catId);
+      } else {
+        next.add(catId);
+      }
+      return next;
+    });
+  };
+
+  const getMapLayerCategories = () => {
+    const baseList = [
+      { id: 'Healthcare', nameEn: 'Healthcare', nameAr: 'الرعاية الصحية', color: GIS_CATEGORY_COLORS['Healthcare'] || '#10B981', defaultCount: 21 },
+      { id: 'Education', nameEn: 'Education', nameAr: 'التعليم', color: GIS_CATEGORY_COLORS['Education'] || '#1D68F2', defaultCount: 20 },
+      { id: 'Transportation', nameEn: 'Transportation', nameAr: 'النقل والمواصلات', color: GIS_CATEGORY_COLORS['Transportation'] || '#F59E0B', defaultCount: 26 },
+      { id: 'Parks', nameEn: 'Parks & Recreation', nameAr: 'الحدائق والمنتزهات', color: GIS_CATEGORY_COLORS['Parks'] || '#059669', defaultCount: 10 },
+      { id: 'Environment', nameEn: 'Environment & Reserves', nameAr: 'البيئة والمحميات', color: GIS_CATEGORY_COLORS['Environment'] || '#14B8A6', defaultCount: 7 },
+      { id: 'Government', nameEn: 'Government & Civic', nameAr: 'المراكز الحكومية', color: GIS_CATEGORY_COLORS['Government'] || '#8B5CF6', defaultCount: 15 },
+      { id: 'Commercial', nameEn: 'Commercial & Retail', nameAr: 'المراكز التجارية', color: GIS_CATEGORY_COLORS['Commercial'] || '#EC4899', defaultCount: 18 },
+      { id: 'Culture', nameEn: 'Culture & Tourism', nameAr: 'الثقافة والسياحة', color: GIS_CATEGORY_COLORS['Culture'] || '#06B6D4', defaultCount: 12 }
+    ];
+
+    if (activeSearchResults && activeSearchResults.length > 0) {
+      const activeCounts = {};
+      activeSearchResults.forEach(item => {
+        const cat = item.category || 'Other';
+        activeCounts[cat] = (activeCounts[cat] || 0) + 1;
+      });
+
+      return baseList.map(cat => ({
+        ...cat,
+        count: activeCounts[cat.id] !== undefined ? activeCounts[cat.id] : cat.defaultCount,
+        isPlotted: (activeCounts[cat.id] || 0) > 0
+      }));
+    }
+
+    return baseList.map(cat => ({
+      ...cat,
+      count: cat.defaultCount,
+      isPlotted: false
+    }));
+  };
+
   const getInitialWelcomeMessage = (rotationIdx = promptRotationIndex) => ({
     id: 'welcome-init',
     sender: 'ai',
@@ -1494,85 +1595,117 @@ function App() {
     ]);
   };
 
-  const handleDrawnAreaSpatialQuery = (drawData) => {
-    setLastDrawnQuery(drawData);
+  const handleDrawnAreaSpatialQuery = (drawData, shouldExecuteImmediately = false) => {
     setSearchBoxDrawnAttachment(drawData);
     setSelectedLocation(null);
+    setActiveSearchResults([]);
+    setActiveSearchFilterTag(null);
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
+    setLastDrawnQuery(null);
 
-    // Capture active subcategories / categories
-    const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
+    // If restoring from saved query or history with shouldExecuteImmediately = true
+    if (shouldExecuteImmediately) {
+      setLastDrawnQuery(drawData);
+      const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
+      const queryResult = executeDrawnAreaSpatialQuery({
+        ...drawData,
+        activeCategories: activeKeys,
+        query: searchQuery,
+        lang: lang
+      });
 
-    const queryResult = executeDrawnAreaSpatialQuery({
-      ...drawData,
-      activeCategories: activeKeys,
-      query: searchQuery,
-      lang: lang
-    });
+      setActiveSearchResults(queryResult.results || []);
+      setActiveSearchFilterTag({
+        query: '',
+        category: 'Drawn Area',
+        label: `Drawn Area (${queryResult.count} found)`
+      });
 
-    setActiveSearchResults(queryResult.results || []);
-    setActiveSearchFilterTag({
-      query: '',
-      category: 'Drawn Area',
-      label: `Drawn Area (${queryResult.count} found)`
-    });
+      setIsAISearchBarOpen(true);
+      setAiState('panel');
+      if (panelHeight <= 100) setPanelHeight(280);
 
-    // Automatically open AI Spatial Search panel to display results
+      const searchId = Date.now() + Math.random();
+      setChatMessages(prev => [
+        ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
+        { sender: 'user', text: queryResult.userQueryText, drawnArea: drawData },
+        { sender: 'ai', isSearching: true, id: searchId }
+      ]);
+
+      const newId = Date.now();
+      setActiveHistoryId(newId);
+      setSearchHistory(prev => [
+        {
+          id: newId,
+          text: queryResult.userQueryText,
+          category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
+          resultsCount: queryResult.count,
+          timestamp: 'Just now',
+          queryState: {
+            query: queryResult.userQueryText,
+            category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
+            selectedSubcategories: selectedSubcategories,
+            spatialType: 'draw',
+            drawnGeometry: drawData,
+            resultsCount: queryResult.count
+          }
+        },
+        ...prev.filter(item => item.text.toLowerCase() !== queryResult.userQueryText.toLowerCase())
+      ]);
+
+      addLog('AI Spatial Engine', `[DRAWN AREA] Spatial query executed: ${queryResult.count} matched in drawn geometry`, 'success');
+      showToast(`Drawn Area Query: Found ${queryResult.count} matching features`);
+
+      setTimeout(() => {
+        setChatMessages(prev => prev.map(msg =>
+          msg.id === searchId
+            ? {
+              sender: 'ai',
+              text: cleanMarkdownText(queryResult.aiMessageText),
+              structuredResults: queryResult.structuredResults,
+              chips: queryResult.chips || [],
+              isExpanded: true,
+              id: searchId
+            }
+            : msg
+        ));
+      }, 450);
+      return;
+    }
+
+    // Normal drawing action: Set drawn area as spatial boundary without executing search or dumping messages
     setIsAISearchBarOpen(true);
     setAiState('panel');
     if (panelHeight <= 100) setPanelHeight(280);
 
-    const searchId = Date.now() + Math.random();
-    setChatMessages(prev => [
-      ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
-      { sender: 'user', text: queryResult.userQueryText, drawnArea: drawData },
-      { sender: 'ai', isSearching: true, id: searchId }
-    ]);
-
-    // Record drawn spatial query to Search History (Recents)
-    const newId = Date.now();
-    setActiveHistoryId(newId);
-    setSearchHistory(prev => [
+    // Reset chat messages to an awaiting-query state with ZERO results and clear guidance
+    setChatMessages([
       {
-        id: newId,
-        text: queryResult.userQueryText,
-        category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
-        resultsCount: queryResult.count,
-        timestamp: 'Just now',
-        queryState: {
-          query: queryResult.userQueryText,
-          category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
-          selectedSubcategories: selectedSubcategories,
-          spatialType: 'draw',
-          drawnGeometry: drawData,
-          resultsCount: queryResult.count
-        }
-      },
-      ...prev.filter(item => item.text.toLowerCase() !== queryResult.userQueryText.toLowerCase())
+        id: 'drawn-awaiting-query',
+        sender: 'ai',
+        text: lang === 'ar'
+          ? `تم تحديد ${getDrawnAreaLabel(drawData, lang)} كحد جغرافي.\n\nاكتب استفسارك في الأسفل واضغط **Enter** لتنفيذ البحث داخل هذه المنطقة.`
+          : `Spatial boundary set: **${getDrawnAreaLabel(drawData, 'en')}**.\n\nType your query in the search bar below and press **Enter** to search within this area.`,
+        chips: [
+          { label: lang === 'ar' ? 'جميع المعالم' : 'All Features', query: 'All places' },
+          { label: lang === 'ar' ? 'المستشفيات' : 'Hospitals', query: 'Hospitals' },
+          { label: lang === 'ar' ? 'المدارس' : 'Schools', query: 'Schools' },
+          { label: lang === 'ar' ? 'المباني التجارية' : 'Commercial Buildings', query: 'Commercial Buildings' },
+          { label: lang === 'ar' ? 'الحدائق' : 'Parks', query: 'Parks' }
+        ]
+      }
     ]);
 
-    addLog('AI Spatial Engine', `[DRAWN AREA] Spatial query executed: ${queryResult.count} matched in drawn geometry`, 'success');
-    showToast(`Drawn Area Query: Found ${queryResult.count} matching features`);
-
-    setTimeout(() => {
-      setChatMessages(prev => prev.map(msg =>
-        msg.id === searchId
-          ? {
-            sender: 'ai',
-            text: queryResult.aiMessageText,
-            structuredResults: queryResult.structuredResults,
-            chips: queryResult.chips || [],
-            isExpanded: true,
-            id: searchId
-          }
-          : msg
-      ));
-    }, 400);
+    showToast(lang === 'ar' ? 'تم تحديد النطاق كحد جغرافي. اكتب استفسارك واضغط Enter' : 'Drawn area set as spatial boundary. Type your query and press Enter');
   };
 
   const handleClearDrawnArea = () => {
     setLastDrawnQuery(null);
     setSearchBoxDrawnAttachment(null);
     setRestoredDrawnGeometry(null);
+    spatialAIEngineInstance.clearDrawnAreaContext();
     setActiveSearchResults([]);
     setActiveSearchFilterTag(null);
     setSelectedLocation(null);
@@ -1599,7 +1732,7 @@ function App() {
       if (panelHeight <= 100) setPanelHeight(280);
       setLastDrawnQuery(queryState.drawnGeometry);
       setRestoredDrawnGeometry({ ...queryState.drawnGeometry, trigger: Date.now() });
-      handleDrawnAreaSpatialQuery(queryState.drawnGeometry);
+      handleDrawnAreaSpatialQuery(queryState.drawnGeometry, true);
       showToast(`Restored: "${item.text || item.title}"`);
       return;
     }
@@ -1716,7 +1849,7 @@ function App() {
     if (queryState?.spatialType === 'draw' && queryState?.drawnGeometry) {
       setLastDrawnQuery(queryState.drawnGeometry);
       setRestoredDrawnGeometry({ ...queryState.drawnGeometry, trigger: Date.now() });
-      handleDrawnAreaSpatialQuery(queryState.drawnGeometry);
+      handleDrawnAreaSpatialQuery(queryState.drawnGeometry, true);
     } else {
       setLastDrawnQuery(null);
       setRestoredDrawnGeometry(null);
@@ -2029,6 +2162,93 @@ function App() {
     const cleanQuery = typeof query === 'string' ? query.trim() : '';
     const cleanCategory = typeof category === 'string' ? category.trim() : '';
 
+    // Check if an active drawn spatial boundary is attached to this query
+    const activeDrawnArea = searchOptions.drawnArea || searchBoxDrawnAttachment || lastDrawnQuery || null;
+    if (activeDrawnArea) {
+      // RULE 6: Do NOT remove the drawn boundary after the query. Retain active context.
+      setSearchBoxDrawnAttachment(activeDrawnArea);
+      setLastDrawnQuery(activeDrawnArea);
+      const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
+      const queryResult = executeDrawnAreaSpatialQuery({
+        ...activeDrawnArea,
+        activeCategories: cleanCategory ? [cleanCategory, ...activeKeys] : activeKeys,
+        query: cleanQuery,
+        lang: lang
+      });
+
+      setSelectedLocation(null);
+      setActiveRoute(null);
+      setIsNavigating(false);
+      setNavStepIndex(0);
+      setActiveSearchResults(queryResult.results || []);
+      setActiveSearchFilterTag({
+        query: cleanQuery,
+        category: cleanCategory || (activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area'),
+        label: cleanQuery
+          ? `${cleanQuery} (${queryResult.count} in drawn area)`
+          : (cleanCategory || `Drawn Area (${queryResult.count} found)`)
+      });
+
+      setShowMap(true);
+      setIsAISearchBarOpen(true);
+      setAiState('panel');
+      if (panelHeight <= 100) setPanelHeight(280);
+
+      const searchId = Date.now() + Math.random();
+      const userBubbleText = displayLabel || cleanQuery || cleanCategory || queryResult.userQueryText;
+
+      setChatMessages(prev => [
+        ...prev.map(m => m.id === 'welcome-init' || m.id === 'drawn-awaiting-query' ? { ...m, chips: [] } : m),
+        {
+          sender: 'user',
+          text: userBubbleText,
+          rawQuery: cleanQuery || cleanCategory || userBubbleText,
+          drawnArea: activeDrawnArea
+        },
+        { sender: 'ai', isSearching: true, id: searchId }
+      ]);
+
+      const newId = Date.now();
+      setActiveHistoryId(newId);
+      setSearchHistory(prev => [
+        {
+          id: newId,
+          text: userBubbleText,
+          category: cleanCategory || (activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area'),
+          resultsCount: queryResult.count,
+          timestamp: 'Just now',
+          queryState: {
+            query: userBubbleText,
+            category: cleanCategory || 'Drawn Area',
+            selectedSubcategories: selectedSubcategories,
+            spatialType: 'draw',
+            drawnGeometry: activeDrawnArea,
+            resultsCount: queryResult.count
+          }
+        },
+        ...prev.filter(item => item.text.toLowerCase() !== userBubbleText.toLowerCase())
+      ]);
+
+      addLog('AI Spatial Engine', `[DRAWN AREA] Spatial query executed: ${queryResult.count} matched for "${userBubbleText}"`, 'success');
+
+      setTimeout(() => {
+        setChatMessages(prev => prev.map(msg =>
+          msg.id === searchId
+            ? {
+              sender: 'ai',
+              text: cleanMarkdownText(queryResult.aiMessageText),
+              structuredResults: queryResult.structuredResults,
+              chips: queryResult.chips || [],
+              isExpanded: true,
+              id: searchId
+            }
+            : msg
+        ));
+      }, 450);
+
+      return;
+    }
+
     if (cleanQuery) {
       const newId = Date.now();
       setActiveHistoryId(newId);
@@ -2117,8 +2337,16 @@ function App() {
         },
         (err) => {
           console.warn('[GeoVision] Geolocation denied or unavailable:', err?.message);
+          const defaultCoords = {
+            lat: 24.4539,
+            lon: 54.3773,
+            name: lang === 'ar' ? 'مركز أبوظبي (افتراضي)' : 'Abu Dhabi Center (Default)',
+            arabicName: 'مركز أبوظبي (افتراضي)',
+            isDefault: true
+          };
+          setRealUserLocation(defaultCoords);
           setLocationPermissionDenied(true);
-          handleUnifiedSearch({ ...searchOptions, userLocationOverride: null, locationPermissionDeniedOverride: true });
+          handleUnifiedSearch({ ...searchOptions, userLocationOverride: defaultCoords, locationPermissionDeniedOverride: true });
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
@@ -2308,8 +2536,9 @@ function App() {
     }
 
     const searchId = Date.now() + Math.random();
-    const activeDrawnArea = searchBoxDrawnAttachment || null;
-    setSearchBoxDrawnAttachment(null);
+    if (!activeDrawnArea) {
+      setSearchBoxDrawnAttachment(null);
+    }
     setChatMessages(prev => [
       ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
       {
@@ -3242,12 +3471,12 @@ function App() {
               {/* Middle: Expanded Vertical Tools Dock */}
               {isMapToolsDockOpen && (
                 <div className="map-tools-vertical-dock">
-                  {/* 1. Layers */}
+                  {/* 1. Layers / All Categories */}
                   <button
-                    className={`map-tool-dock-btn ${activeLeftPopover === 'legend' ? 'active' : ''}`}
-                    title={lang === 'ar' ? 'الطبقات ومفتاح الخريطة' : 'Layers & Legend'}
+                    className={`map-tool-dock-btn ${activeLeftPopover === 'layers' ? 'active' : ''}`}
+                    title={lang === 'ar' ? 'جميع الفئات' : 'All Categories'}
                     onClick={() => {
-                      setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend');
+                      setActiveLeftPopover(prev => prev === 'layers' ? null : 'layers');
                     }}
                   >
                     <Layers size={17} strokeWidth={2.2} />
@@ -3274,7 +3503,7 @@ function App() {
                   {/* 4. Legend */}
                   <button
                     className={`map-tool-dock-btn ${activeLeftPopover === 'legend' ? 'active' : ''}`}
-                    title={lang === 'ar' ? 'مفتاح الخريطة والتحليل' : 'Legend & Analysis'}
+                    title={lang === 'ar' ? 'مفتاح الخريطة' : 'Map Legend'}
                     onClick={() => setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend')}
                   >
                     <GeoVisionGradientIcon src={legendSvg} size={16} alt="Legend" />
@@ -3625,6 +3854,265 @@ function App() {
             </div>
           )}
 
+          {/* ALL CATEGORIES FLOATING POPOVER PANEL (MATCHING REFERENCE UI) */}
+          {activeLeftPopover === 'layers' && (
+            <div
+              ref={leftPopoverRef}
+              className="map-popover-card categories-popover-panel"
+              style={{
+                bottom: '76px',
+                left: lang === 'ar' ? 'auto' : '74px',
+                right: lang === 'ar' ? '74px' : 'auto',
+                transition: lang === 'ar' ? 'right 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                direction: lang === 'ar' ? 'rtl' : 'ltr'
+              }}
+            >
+              {/* PANEL HEADER WITH TITLE & CLOSE BUTTON */}
+              <div className="categories-popover-header">
+                <h3 className="categories-popover-title">
+                  {t.allCategories || (lang === 'ar' ? 'جميع الفئات' : 'All Categories')}
+                </h3>
+
+                <button
+                  type="button"
+                  className="categories-popover-close-btn"
+                  onClick={() => setActiveLeftPopover(null)}
+                  title={lang === 'ar' ? 'إغلاق اللوحة' : 'Close Categories Panel'}
+                  aria-label="Close Categories Panel"
+                >
+                  <X
+                    size={16}
+                    strokeWidth={2.4}
+                  />
+                </button>
+              </div>
+
+              {/* SEARCH INPUT BAR */}
+              <div className="categories-popover-search-wrap">
+                <input
+                  type="text"
+                  className="categories-popover-search-input"
+                  placeholder={lang === 'ar' ? 'البحث في الفئات...' : 'Search categories...'}
+                  value={categorySearchQuery}
+                  onChange={(e) => setCategorySearchQuery(e.target.value)}
+                  style={{
+                    padding: lang === 'ar' ? '0 10px 0 34px' : '0 34px 0 10px',
+                    textAlign: lang === 'ar' ? 'right' : 'left'
+                  }}
+                />
+                <Search
+                  size={15}
+                  color="#94A3B8"
+                  style={{
+                    position: 'absolute',
+                    right: lang === 'ar' ? 'auto' : '10px',
+                    left: lang === 'ar' ? '10px' : 'auto',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none'
+                  }}
+                />
+              </div>
+
+              {/* CATEGORIES ACCORDION SCROLLABLE LIST */}
+              <div
+                className="categories-popover-scroll"
+                style={{
+                  paddingRight: lang === 'ar' ? '0' : '2px',
+                  paddingLeft: lang === 'ar' ? '2px' : '0'
+                }}
+              >
+                {CATEGORY_TREE
+                  .filter(cat => {
+                    if (!categorySearchQuery) return true;
+                    const q = categorySearchQuery.toLowerCase();
+                    const nameEn = cat.name.toLowerCase();
+                    const nameAr = (t.getCatName ? t.getCatName(cat.name) : '').toLowerCase();
+                    return (
+                      nameEn.includes(q) ||
+                      nameAr.includes(q) ||
+                      cat.subcategories.some(sub => {
+                        const subEn = sub.toLowerCase();
+                        const subAr = (t.getSubcatName ? t.getSubcatName(sub) : '').toLowerCase();
+                        return subEn.includes(q) || subAr.includes(q);
+                      })
+                    );
+                  })
+                  .map(cat => {
+                    const catColor = GIS_CATEGORY_COLORS[cat.name] || '#1D68F2';
+                    const isExpanded = expandedCategory === cat.name || (!!categorySearchQuery && cat.subcategories.some(s => s.toLowerCase().includes(categorySearchQuery.toLowerCase())));
+                    const badgeStyle = getCategoryBadgeStyle(cat.name, isExpanded, theme === 'dark');
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className="categories-popover-card-item"
+                        style={{
+                          flexShrink: 0,
+                          borderRadius: '8px',
+                          border: isExpanded
+                            ? (theme === 'dark' ? `1px solid ${catColor}70` : `1px solid ${catColor}50`)
+                            : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(226, 232, 240, 0.85)'),
+                          borderLeft: lang === 'ar' ? undefined : (isExpanded ? `3.5px solid ${catColor}` : undefined),
+                          borderRight: lang === 'ar' ? (isExpanded ? `3.5px solid ${catColor}` : undefined) : undefined,
+                          background: isExpanded
+                            ? (theme === 'dark' ? `${catColor}18` : '#EFF6FF')
+                            : (theme === 'dark' ? 'rgba(14, 38, 77, 0.50)' : '#FFFFFF'),
+                          overflow: 'hidden',
+                          boxShadow: isExpanded
+                            ? (theme === 'dark' ? `0 2px 8px ${catColor}30` : '0 2px 8px rgba(29, 104, 242, 0.08)')
+                            : 'none',
+                          transition: 'all 0.2s ease',
+                          marginBottom: '2px'
+                        }}
+                      >
+                        {/* ACCORDION HEADER */}
+                        <div
+                          className="categories-popover-card-header"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            height: '32px',
+                            minHeight: '32px',
+                            padding: '0 8px',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            flexShrink: 0
+                          }}
+                          onClick={() => setExpandedCategory(isExpanded ? null : cat.name)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                            {isExpanded ? (
+                              <ChevronDown
+                                size={13}
+                                color={theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor}
+                                strokeWidth={2.4}
+                              />
+                            ) : (
+                              lang === 'ar'
+                                ? <ChevronLeft size={13} color={theme === 'dark' ? '#94A3B8' : '#64748B'} strokeWidth={2.4} />
+                                : <ChevronRight size={13} color={theme === 'dark' ? '#94A3B8' : '#64748B'} strokeWidth={2.4} />
+                            )}
+                            <span
+                              style={{
+                                fontSize: '12.5px',
+                                fontWeight: 600,
+                                color: isExpanded
+                                  ? (theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor)
+                                  : (theme === 'dark' ? '#F1F5F9' : '#0F172A')
+                              }}
+                            >
+                              {t.getCatName ? t.getCatName(cat.name) : cat.name}
+                            </span>
+                          </div>
+
+                          {/* CATEGORY BADGE PILL MATCHING IMAGE 2 */}
+                          <span
+                            style={{
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              background: badgeStyle.background,
+                              color: badgeStyle.color,
+                              border: badgeStyle.border,
+                              padding: '1.5px 7px',
+                              borderRadius: '10px',
+                              flexShrink: 0
+                            }}
+                          >
+                            {cat.subcategories.length}
+                          </span>
+                        </div>
+
+                        {/* EXPANDED SUBCATEGORIES LIST WITH CHECKBOXES */}
+                        {isExpanded && (
+                          <div
+                            className="categories-popover-subcat-list"
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '2px',
+                              padding: '4px 8px 8px 8px',
+                              borderTop: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(226, 232, 240, 0.8)',
+                              background: theme === 'dark' ? 'rgba(10, 25, 47, 0.40)' : '#FFFFFF'
+                            }}
+                          >
+                            {cat.subcategories.map(subcat => {
+                              const isSubSelected = !!selectedSubcategories[subcat];
+                              return (
+                                <div
+                                  key={subcat}
+                                  className="categories-popover-subcat-row"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    minHeight: '28px',
+                                    padding: '6px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '12.5px',
+                                    color: isSubSelected
+                                      ? (theme === 'dark' ? '#38BDF8' : '#004B87')
+                                      : (theme === 'dark' ? '#E2E8F0' : '#334155'),
+                                    background: isSubSelected
+                                      ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.16)' : 'rgba(0, 75, 135, 0.07)')
+                                      : 'transparent',
+                                    fontWeight: isSubSelected ? 600 : 400,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={() => handleCategoryToggle(subcat)}
+                                >
+                                  {/* CUSTOM ROUNDED CHECKBOX SQUARE */}
+                                  <div
+                                    style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '4px',
+                                      border: isSubSelected
+                                        ? (theme === 'dark' ? '1.5px solid #38BDF8' : '1.5px solid #004B87')
+                                        : (theme === 'dark' ? '1.5px solid rgba(255, 255, 255, 0.35)' : '1.5px solid #94A3B8'),
+                                      background: isSubSelected
+                                        ? (theme === 'dark' ? '#0284C7' : '#004B87')
+                                        : (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF'),
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.15s ease',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {isSubSelected && (
+                                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                        <path d="M1.5 4L3.83333 6.5L8.5 1.5" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                      </svg>
+                                    )}
+                                  </div>
+
+                                  {/* SUBCATEGORY TEXT LABEL */}
+                                  <span
+                                    style={{
+                                      color: isSubSelected
+                                        ? (theme === 'dark' ? '#38BDF8' : '#002B5B')
+                                        : (theme === 'dark' ? '#E2E8F0' : '#334155'),
+                                      fontWeight: isSubSelected ? 600 : 400
+                                    }}
+                                  >
+                                    {t.getSubcatName ? t.getSubcatName(subcat) : subcat}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {/* DYNAMIC MAP LEGEND POPOVER CARD */}
           {activeLeftPopover === 'legend' && (
             <div
@@ -3641,7 +4129,7 @@ function App() {
             >
               <div style={{ padding: '2px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <h4 style={{ fontSize: '12px', fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#002B5B', margin: 0, letterSpacing: '-0.01em' }}>{lang === 'ar' ? 'مفتاح الخريطة والطبقات' : 'Map Legend & Layers'}</h4>
+                  <h4 style={{ fontSize: '12px', fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#002B5B', margin: 0, letterSpacing: '-0.01em' }}>{lang === 'ar' ? 'مفتاح الخريطة' : 'Map Legend'}</h4>
                   <button
                     type="button"
                     className="popover-close-btn"
@@ -3712,7 +4200,7 @@ function App() {
               addLog={addLog}
               showToast={showToast}
               mapInstanceRef={mapInstanceRef}
-              activeSearchResults={activeSearchResults}
+              activeSearchResults={disabledLayers.size > 0 ? activeSearchResults.filter(item => !disabledLayers.has(item.category)) : activeSearchResults}
               selectedLocation={selectedLocation}
               setSelectedLocation={setSelectedLocation}
               onFeatureClick={handleFeatureClick}
@@ -3782,8 +4270,8 @@ function App() {
                 }}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (aiSearchQuery.trim()) {
-                    handleUnifiedSearch({ query: aiSearchQuery });
+                  if (aiSearchQuery.trim() || searchBoxDrawnAttachment) {
+                    handleUnifiedSearch({ query: aiSearchQuery.trim() });
                     setAiSearchQuery('');
                   } else {
                     setAiState('panel');
@@ -3809,7 +4297,7 @@ function App() {
                   }}
                 />
                 <div className="landing-search-btn-wrapper">
-                  <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
+                  <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim() && !searchBoxDrawnAttachment}>
                     <span className="search-btn-text">{t.searchBtn || 'Search'}</span>
                     <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
                   </button>
@@ -6527,8 +7015,8 @@ function App() {
                         }}
                         onSubmit={(e) => {
                           e.preventDefault();
-                          if (aiSearchQuery.trim()) {
-                            handleUnifiedSearch({ query: aiSearchQuery });
+                          if (aiSearchQuery.trim() || searchBoxDrawnAttachment) {
+                            handleUnifiedSearch({ query: aiSearchQuery.trim() });
                             setAiSearchQuery('');
                             setShowPlusMenu(false);
                           }
@@ -6603,7 +7091,7 @@ function App() {
                             style={{ fontSize: '13px', flex: 1 }}
                           />
                           <div className="landing-search-btn-wrapper">
-                            <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
+                            <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim() && !searchBoxDrawnAttachment}>
                               <span className="search-btn-text">{t.searchBtn || (lang === 'ar' ? 'بحث' : 'Search')}</span>
                               <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
                             </button>
