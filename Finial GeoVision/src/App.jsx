@@ -1289,6 +1289,9 @@ function App() {
     setChatMessages([getInitialWelcomeMessage(nextRotation)]);
     setActiveSearchResults([]);
     setSelectedLocation(null);
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
     setAiSearchQuery('');
     setSearchQuery('');
     showToast(lang === 'ar' ? 'تم بدء محادثة جديدة' : 'New Chat Started');
@@ -1314,6 +1317,9 @@ function App() {
       }
     ]);
     setSelectedLocation(null);
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
     showToast(lang === 'ar' ? 'تم مسح سياق المحادثة بالكامل' : 'All conversation context cleared');
   };
 
@@ -1570,6 +1576,9 @@ function App() {
     setActiveSearchResults([]);
     setActiveSearchFilterTag(null);
     setSelectedLocation(null);
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
     addLog('AI Spatial Engine', 'Spatial query area cleared', 'info');
   };
 
@@ -2013,6 +2022,9 @@ function App() {
       locationPermissionDeniedOverride
     } = searchOptions || {};
     setSelectedLocation(null);
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
     if (panelHeight <= 100) setPanelHeight(200);
     const cleanQuery = typeof query === 'string' ? query.trim() : '';
     const cleanCategory = typeof category === 'string' ? category.trim() : '';
@@ -2039,6 +2051,9 @@ function App() {
       setChatMessages([getInitialWelcomeMessage()]);
       setActiveSearchResults([]);
       setSelectedLocation(null);
+      setActiveRoute(null);
+      setIsNavigating(false);
+      setNavStepIndex(0);
       setAiSearchQuery('');
       setSearchQuery('');
       return;
@@ -2228,6 +2243,9 @@ function App() {
       }
     } else if (engineRes.intent !== 'print_export' && engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action') {
       setSelectedLocation(null);
+      setActiveRoute(null);
+      setIsNavigating(false);
+      setNavStepIndex(0);
       setActiveSearchResults(results);
       if (cleanCategory && !cleanQuery) {
         setSelectedSubcategories({ [cleanCategory]: true });
@@ -2420,6 +2438,11 @@ function App() {
   const handleFeatureClick = (feature) => {
     if (!feature) return;
 
+    // Clear previous route / navigation when selecting a new feature
+    setActiveRoute(null);
+    setIsNavigating(false);
+    setNavStepIndex(0);
+
     // 1. Highlight the selected feature on the map and open Detailed Information sidebar
     setSelectedLocation({ ...feature, locateTrigger: Date.now() });
     setActiveDetailTab('overview');
@@ -2500,10 +2523,15 @@ function App() {
     }
   };
 
-  // Automatically recalculate route when user navigates to the Route tab or switches selected feature
+  // Automatically manage route state when user navigates to/from the Route tab or switches selected feature
   useEffect(() => {
     if (activeDetailTab === 'route' && selectedLocation && selectedLocation.lat != null && selectedLocation.lon != null) {
       handleCalculateRoute(selectedLocation, travelMode, false);
+    } else {
+      // Clear route when not on the route tab or when no feature is selected
+      setActiveRoute(null);
+      setIsNavigating(false);
+      setNavStepIndex(0);
     }
   }, [activeDetailTab, selectedLocation?.id, travelMode]);
 
@@ -3926,6 +3954,9 @@ function App() {
                       title={lang === 'ar' ? 'العودة إلى محادثة المساعد الذكي' : "Back to AI Chat"}
                       onClick={() => {
                         setSelectedLocation(null);
+                        setActiveRoute(null);
+                        setIsNavigating(false);
+                        setNavStepIndex(0);
                         setAiState('panel');
                         setIsAiClosing(false);
                       }}
@@ -4013,7 +4044,12 @@ function App() {
                       onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : '#F1F5F9')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                       title={lang === 'ar' ? 'إغلاق التفاصيل' : "Close Details"}
-                      onClick={() => setSelectedLocation(null)}
+                      onClick={() => {
+                        setSelectedLocation(null);
+                        setActiveRoute(null);
+                        setIsNavigating(false);
+                        setNavStepIndex(0);
+                      }}
                     >
                       <X size={16} strokeWidth={2.4} />
                     </button>
@@ -4091,7 +4127,12 @@ function App() {
                   <button
                     type="button"
                     className={`structured-subtab-btn ${(activeDetailTab || 'overview') === 'overview' ? 'active' : ''}`}
-                    onClick={() => setActiveDetailTab('overview')}
+                    onClick={() => {
+                      setActiveDetailTab('overview');
+                      setActiveRoute(null);
+                      setIsNavigating(false);
+                      setNavStepIndex(0);
+                    }}
                   >
                     {t.overview || (lang === 'ar' ? 'نظرة عامة' : 'Overview')}
                   </button>
@@ -4099,7 +4140,12 @@ function App() {
                   <button
                     type="button"
                     className={`structured-subtab-btn ${(activeDetailTab || 'overview') === 'details' ? 'active' : ''}`}
-                    onClick={() => setActiveDetailTab('details')}
+                    onClick={() => {
+                      setActiveDetailTab('details');
+                      setActiveRoute(null);
+                      setIsNavigating(false);
+                      setNavStepIndex(0);
+                    }}
                   >
                     {t.details || (lang === 'ar' ? 'التفاصيل' : 'Details')}
                   </button>
@@ -6203,6 +6249,9 @@ function App() {
                                                             className={`structured-subtab-btn ${(item.activeDetailTab || 'overview') === 'overview' ? 'active' : ''}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
+                                                              setActiveRoute(null);
+                                                              setIsNavigating(false);
+                                                              setNavStepIndex(0);
                                                               setChatMessages(prev => prev.map((m, i) => {
                                                                 if (i === idx) {
                                                                   const newItems = m.structuredResults.items.map(it => it.id === item.id ? { ...it, activeDetailTab: 'overview' } : it);
@@ -6220,6 +6269,9 @@ function App() {
                                                             className={`structured-subtab-btn ${(item.activeDetailTab || 'overview') === 'details' ? 'active' : ''}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
+                                                              setActiveRoute(null);
+                                                              setIsNavigating(false);
+                                                              setNavStepIndex(0);
                                                               setChatMessages(prev => prev.map((m, i) => {
                                                                 if (i === idx) {
                                                                   const newItems = m.structuredResults.items.map(it => it.id === item.id ? { ...it, activeDetailTab: 'details' } : it);
