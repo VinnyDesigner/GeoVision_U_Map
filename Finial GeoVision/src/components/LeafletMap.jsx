@@ -663,44 +663,9 @@ export default function LeafletMap({
     const boundaryGroup = boundaryGroupRef.current;
     if (!markersGroup || !boundaryGroup) return;
 
-    // 1. Initial Abu Dhabi placeholder marker (only when no user location, no search results and no operational layers active)
+    // Clear operational markers when project layers are updated
     markersGroup.clearLayers();
-    if (!userLocation && !activeSearchResults?.length && !layers.buildings3D && !layers.projectBoundary && !layers.heatmapOverlay) {
-      const redPinHtml = `
-        <div style="
-          position: relative;
-          width: 28px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transform: translate(-50%, -100%);
-        ">
-          <div style="
-            width: 26px;
-            height: 26px;
-            background: linear-gradient(135deg, #004B87 0%, #002B5B 100%);
-            border: 2px solid #ffffff;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 4px 14px rgba(0,43,91,0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          ">
-            <div style="width: 8px; height: 8px; background: #ffffff; border-radius: 50%; transform: rotate(45deg);"></div>
-          </div>
-        </div>
-      `;
-      const redPinIcon = L.divIcon({
-        html: redPinHtml,
-        className: '',
-        iconSize: [0, 0]
-      });
-      L.marker([24.4539, 54.3773], { icon: redPinIcon })
-        .bindPopup("<b>Abu Dhabi, UAE</b><br>Capital Region")
-        .addTo(markersGroup);
-    }
+
 
     // 2. Boundary geofence
     if (layers.projectBoundary && activeProject.boundaryCoords) {

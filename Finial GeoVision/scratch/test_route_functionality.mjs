@@ -22,8 +22,8 @@ assert(tEn.route === 'Route', 'tEn.route is "Route"');
 assert(tAr.route === 'المسار', 'tAr.route is "المسار"');
 assert(tEn.getDirections === 'Get Directions', 'tEn.getDirections is "Get Directions"');
 assert(tAr.getDirections === 'الحصول على الاتجاهات', 'tAr.getDirections is "الحصول على الاتجاهات"');
-assert(tEn.fromMyLocation === 'From: My Location', 'tEn.fromMyLocation is "From: My Location"');
-assert(tAr.fromMyLocation === 'من: موقعي الحالي', 'tAr.fromMyLocation is "من: موقعي الحالي"');
+assert(tEn.fromMyLocation === 'My Current Location', 'tEn.fromMyLocation is "My Current Location"');
+assert(tAr.fromMyLocation === 'موقعي الحالي', 'tAr.fromMyLocation is "موقعي الحالي"');
 assert(tEn.detectMyLocation === 'Detect My Location', 'tEn.detectMyLocation is "Detect My Location"');
 assert(tAr.detectMyLocation === 'تحديد موقعي الآن', 'tAr.detectMyLocation is "تحديد موقعي الآن"');
 

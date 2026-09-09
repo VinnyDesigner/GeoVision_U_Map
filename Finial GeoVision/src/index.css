@@ -2761,6 +2761,9 @@ input:checked+.slider:before {
 /* Profile menu wrapper — keeps button + card in the same stacking context */
 .profile-menu-wrapper {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   z-index: 2001 !important;
 }
 
@@ -2769,20 +2772,49 @@ input:checked+.slider:before {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 188px;
+  width: 200px;
   background: #FFFFFF;
-  border-radius: 12px;
-  box-shadow: 0 4px 4px 0 rgba(98, 110, 118, 0.14), 0 8px 24px 0 rgba(0, 46, 91, 0.10);
-  padding: 10px 8px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(2, 46, 91, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(2, 46, 91, 0.08);
+  padding: 8px 6px;
   z-index: 2002 !important;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  box-sizing: border-box;
+  animation: profileDropdownFade 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+@keyframes profileDropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 [data-theme="dark"] .profile-dropdown {
-  background: rgba(15, 23, 42, 0.97);
-  box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.35), 0 8px 24px 0 rgba(0, 0, 0, 0.30);
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+}
+
+[dir="rtl"] .profile-dropdown {
+  right: auto !important;
+  left: 0 !important;
+  transform-origin: top left !important;
+}
+
+[dir="rtl"] .profile-item {
+  text-align: right !important;
+  flex-direction: row !important;
 }
 
 /* Each row */
@@ -2793,20 +2825,22 @@ input:checked+.slider:before {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
-  font-size: 14px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 400;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-family: inherit;
+  font-weight: 500;
   line-height: 20px;
   color: #022E5B;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.18s ease;
+  border-radius: 8px;
+  transition: all 0.18s ease;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .profile-item:hover {
-  background: rgba(157, 197, 233, 0.25);
+  background: rgba(2, 46, 91, 0.06);
+  color: #022E5B;
 }
 
 /* Icon inside each row */
@@ -2823,7 +2857,7 @@ input:checked+.slider:before {
 }
 
 .profile-item--signin:hover {
-  background: rgba(157, 197, 233, 0.25);
+  background: rgba(2, 46, 91, 0.06);
 }
 
 /* Dark theme overrides */
@@ -2833,6 +2867,7 @@ input:checked+.slider:before {
 
 [data-theme="dark"] .profile-item:hover {
   background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 [data-theme="dark"] .profile-item--signin {
@@ -2841,6 +2876,7 @@ input:checked+.slider:before {
 
 [data-theme="dark"] .profile-item--signin:hover {
   background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
 }
 
 
@@ -3841,6 +3877,106 @@ body.dark-theme .geovision-gradient-icon-wrapper {
 [data-theme="dark"] .basemap-card-2col.active {
   background: rgba(29, 104, 242, 0.40) !important;
   border-color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .basemap-card-title,
+.dark-theme .basemap-card-title,
+.dark .basemap-card-title {
+  color: #E2E8F0 !important;
+}
+
+[data-theme="dark"] .basemap-card-2col.active .basemap-card-title,
+.dark-theme .basemap-card-2col.active .basemap-card-title,
+.dark .basemap-card-2col.active .basemap-card-title {
+  color: #38BDF8 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="dark"] .basemap-card-2col:hover .basemap-card-title,
+.dark-theme .basemap-card-2col:hover .basemap-card-title,
+.dark .basemap-card-2col:hover .basemap-card-title {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .legend-popover-card h4,
+.dark-theme .legend-popover-card h4,
+.dark .legend-popover-card h4 {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .legend-popover-item,
+.dark-theme .legend-popover-item,
+.dark .legend-popover-item {
+  background: rgba(14, 34, 70, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+[data-theme="dark"] .legend-popover-item span,
+.dark-theme .legend-popover-item span,
+.dark .legend-popover-item span {
+  color: #F1F5F9 !important;
+}
+
+[data-theme="dark"] .categories-accordion-item,
+.dark-theme .categories-accordion-item,
+.dark .categories-accordion-item {
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-theme="dark"] .categories-accordion-header,
+.dark-theme .categories-accordion-header,
+.dark .categories-accordion-header {
+  background: rgba(14, 38, 77, 0.50) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #F1F5F9 !important;
+}
+
+[data-theme="dark"] .categories-accordion-header:hover,
+.dark-theme .categories-accordion-header:hover,
+.dark .categories-accordion-header:hover {
+  background: rgba(24, 52, 102, 0.70) !important;
+  border-color: rgba(56, 189, 248, 0.40) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .categories-accordion-header.expanded,
+.dark-theme .categories-accordion-header.expanded,
+.dark .categories-accordion-header.expanded {
+  background: rgba(30, 64, 120, 0.40) !important;
+  border-color: rgba(56, 189, 248, 0.60) !important;
+  color: #60A5FA !important;
+}
+
+[data-theme="dark"] .categories-subcategories-list,
+.dark-theme .categories-subcategories-list,
+.dark .categories-subcategories-list {
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-theme="dark"] .categories-subcat-item,
+.dark-theme .categories-subcat-item,
+.dark .categories-subcat-item {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: #E2E8F0 !important;
+}
+
+[data-theme="dark"] .categories-subcat-item:hover,
+.dark-theme .categories-subcat-item:hover,
+.dark .categories-subcat-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .categories-subcat-item.active,
+.dark-theme .categories-subcat-item.active,
+.dark .categories-subcat-item.active {
+  background: rgba(56, 189, 248, 0.20) !important;
+  border-color: rgba(56, 189, 248, 0.50) !important;
+  color: #38BDF8 !important;
 }
 
 /* Dark Theme Comprehensive White Icon System */
@@ -7964,72 +8100,78 @@ body.dark-theme .geovision-gradient-icon-wrapper {
 
 /* CATEGORIES LISTING CARD STYLING (PREVENT OVERLAPPING & ENSURE PROPER HEIGHT) */
 .categories-accordion-item {
-  flex-shrink: 0 !important;
-  width: 100% !important;
-  margin-bottom: 2px !important;
-  box-sizing: border-box !important;
+  flex-shrink: 0;
+  width: 100%;
+  margin-bottom: 2px;
+  box-sizing: border-box;
 }
 
-.categories-accordion-header {
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
-  flex-shrink: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  padding: 0 12px !important;
-  background: rgba(255, 255, 255, 0.5) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.7) !important;
-  border-radius: 10px !important;
-  box-shadow: 0 2px 6px rgba(0, 43, 91, 0.04) !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  box-sizing: border-box !important;
+[data-theme="light"] .categories-accordion-header,
+.light .categories-accordion-header {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
-.categories-accordion-header:hover {
-  background: rgba(255, 255, 255, 0.85) !important;
-  border-color: rgba(37, 99, 235, 0.4) !important;
+[data-theme="light"] .categories-accordion-header:hover,
+.light .categories-accordion-header:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(37, 99, 235, 0.4);
 }
 
-.categories-accordion-header.expanded {
-  background: rgba(37, 99, 235, 0.08) !important;
-  border-color: rgba(37, 99, 235, 0.5) !important;
+[data-theme="light"] .categories-accordion-header.expanded,
+.light .categories-accordion-header.expanded {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.5);
 }
 
 .categories-subcategories-list {
-  flex-shrink: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 2px !important;
-  padding: 4px 4px 4px 8px !important;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 4px 6px;
 }
 
-.categories-subcat-item {
-  min-height: 28px !important;
-  flex-shrink: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  padding: 4px 10px !important;
-  border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.35) !important;
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
+[data-theme="light"] .categories-subcat-item,
+.light .categories-subcat-item {
+  min-height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.categories-subcat-item:hover {
-  background: rgba(37, 99, 235, 0.1) !important;
-  color: #1D68F2 !important;
+[data-theme="light"] .categories-subcat-item:hover,
+.light .categories-subcat-item:hover {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1D68F2;
 }
 
-.categories-subcat-item.active {
-  background: rgba(29, 104, 242, 0.15) !important;
-  border-color: rgba(29, 104, 242, 0.4) !important;
-  color: #1D68F2 !important;
-  font-weight: 600 !important;
+[data-theme="light"] .categories-subcat-item.active,
+.light .categories-subcat-item.active {
+  background: rgba(29, 104, 242, 0.12);
+  border-color: rgba(29, 104, 242, 0.35);
+  color: #1D68F2;
+  font-weight: 600;
 }
 
 .search-history-logo-header {
@@ -8594,39 +8736,43 @@ body.dark-theme .geovision-gradient-icon-wrapper {
   border-radius: 4px;
 }
 
-.categories-accordion-item {
+[data-theme="light"] .categories-accordion-item,
+.light .categories-accordion-item {
   border: 1px solid #E2E8F0;
   border-radius: 10px;
   overflow: hidden;
   background: #F8FAFC;
 }
 
-.categories-accordion-header {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
-  padding: 0 12px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  color: #1E293B !important;
+[data-theme="light"] .categories-accordion-header,
+.light .categories-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1E293B;
   cursor: pointer;
   user-select: none;
   transition: background 0.15s ease;
-  box-sizing: border-box !important;
+  box-sizing: border-box;
 }
 
-.categories-accordion-header:hover {
+[data-theme="light"] .categories-accordion-header:hover,
+.light .categories-accordion-header:hover {
   background: #F1F5F9;
-  color: #215a9e !important;
+  color: #215a9e;
 }
 
-.categories-accordion-header.expanded {
-  background: #EFF6FF !important;
-  color: #215a9e !important;
-  font-weight: 600 !important;
+[data-theme="light"] .categories-accordion-header.expanded,
+.light .categories-accordion-header.expanded {
+  background: #EFF6FF;
+  color: #215a9e;
+  font-weight: 600;
 }
 
 .categories-header-title {
@@ -8649,7 +8795,8 @@ body.dark-theme .geovision-gradient-icon-wrapper {
   color: #1D4ED8;
 }
 
-.categories-subcategories-list {
+[data-theme="light"] .categories-subcategories-list,
+.light .categories-subcategories-list {
   display: flex;
   flex-direction: column;
   padding: 6px;
@@ -8658,7 +8805,8 @@ body.dark-theme .geovision-gradient-icon-wrapper {
   gap: 2px;
 }
 
-.categories-subcat-item {
+[data-theme="light"] .categories-subcat-item,
+.light .categories-subcat-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -11826,9 +11974,10 @@ body[dir="rtl"],
 /* ── 1. About Hero Section (Topographic Wave Background) ── */
 .about-hero-section {
   position: relative;
-  min-height: 480px;
+  min-height: 290px;
+  max-height: 380px;
   margin-top: -64px;
-  padding: 155px 24px 75px 24px;
+  padding: 105px 24px 45px 24px;
   text-align: center;
   overflow: hidden;
   display: flex;
@@ -11858,8 +12007,8 @@ body[dir="rtl"],
 }
 
 .about-dark .about-hero-bg-img {
-  filter: brightness(0.55) saturate(1.3) hue-rotate(10deg);
-  opacity: 0.75;
+  filter: brightness(1.1) contrast(1.05);
+  opacity: 0.95;
 }
 
 .about-hero-content {
@@ -14889,6 +15038,50 @@ body[dir="rtl"],
   box-shadow: 0 4px 12px rgba(2, 132, 199, 0.5) !important;
 }
 
+/* Map Dock Tools: Compass & Locate Live Micro-Interactions */
+.geovision-compass-spin {
+  animation: geovisionCompassSpring 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+}
 
+@keyframes geovisionCompassSpring {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  30% {
+    transform: rotate(180deg) scale(1.18);
+  }
+  70% {
+    transform: rotate(380deg) scale(1.08);
+  }
+  85% {
+    transform: rotate(355deg) scale(1.02);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
 
+.geovision-locate-spin {
+  animation: geovisionLocatePulse 1s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+}
+
+@keyframes geovisionLocatePulse {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.22) rotate(15deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.map-tool-dock-btn.is-locating-pulse {
+  background: rgba(29, 104, 242, 0.2) !important;
+  box-shadow: 0 0 10px rgba(29, 104, 242, 0.5) !important;
+}
 

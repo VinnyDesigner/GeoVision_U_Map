@@ -3324,6 +3324,129 @@ export function cleanMarkdownText(str) {
     .trim();
 }
 
+export const GENERIC_ERROR_MESSAGE_EN = "I'm unable to answer that question. Please try rephrasing your query or ask about available spatial data.";
+export const GENERIC_ERROR_MESSAGE_AR = "لا يمكنني الإجابة عن هذا السؤال. يرجى محاولة إعادة صياغة استعلامك أو الاستفسار عن البيانات المكانية المتاحة.";
+
+/**
+ * Normalizes user queries by correcting spacing, grammar, punctuation, typos, and singular/plural variations.
+ * Runs BEFORE intent/category/location extraction so valid queries with minor errors succeed smoothly.
+ */
+export function normalizeUserSpatialQuery(rawQuery = '') {
+  if (!rawQuery || typeof rawQuery !== 'string') return '';
+
+  let q = rawQuery.trim();
+
+  // 1. Clean punctuation while preserving decimals in numbers (e.g. 5.0 km, coordinates)
+  q = q.replace(/[؟?!:;,`"“”'’]+/g, ' ');
+  // Remove period only if not between digits (e.g. "city." -> "city", but keep "5.0")
+  q = q.replace(/(?<!\d)\.|\.(?!\d)/g, ' ');
+
+  // 2. Normalize glued English and Arabic prepositions, keywords, and measurements
+  q = q.replace(/\b(show|find|get|list|display|search|navigate|route)([a-zA-Z]{3,})\b/gi, '$1 $2');
+  q = q.replace(/\b([a-zA-Z]+)near\b/gi, '$1 near');
+  q = q.replace(/\bnear([a-zA-Z]+)\b/gi, 'near $1');
+  q = q.replace(/\b([a-zA-Z]+)(near|nearby|within|around|inside|from|closest|nearest)(me|my\s+location|current\s+location)\b/gi, '$1 $2 $3');
+  q = q.replace(/\b([a-zA-Z]+)(near|around|within|closest|nearest|in|at|of|to|from)(khalifa|yas|mushrif|mussafah|bateen|reem|dhabi|saadiyat|al|ain|dhafra|dubai|ruwais)\b/gi, '$1 $2 $3');
+  q = q.replace(/\b(near|within|around|closest|nearest|in|at)(me|khalifa|yas|mushrif|mussafah|dhabi|dubai)\b/gi, '$1 $2');
+  q = q.replace(/\b(within)(\d+)/gi, '$1 $2');
+  q = q.replace(/(\d+)(km|m|كيلومتر|كم|متر)\b/gi, '$1 $2');
+  q = q.replace(/\bnearme\b/gi, 'near me');
+  q = q.replace(/\bcloseto\b/gi, 'close to');
+  q = q.replace(/\bnextto\b/gi, 'next to');
+
+  // Arabic glued joins
+  q = q.replace(/حدائقفي/g, 'حدائق في ');
+  q = q.replace(/مستشفياتفي/g, 'مستشفيات في ');
+  q = q.replace(/مدارسفي/g, 'مدارس في ');
+  q = q.replace(/صيدلياتفي/g, 'صيدليات في ');
+  q = q.replace(/مرافقفي/g, 'مرافق في ');
+  q = q.replace(/فيأبوظبي/g, 'في أبوظبي');
+  q = q.replace(/فيابوظبي/g, 'في أبوظبي');
+  q = q.replace(/فيالعين/g, 'في العين');
+  q = q.replace(/فيالظفرة/g, 'في الظفرة');
+  q = q.replace(/قريبمني/g, 'قريب مني');
+  q = q.replace(/قريبمن/g, 'قريب من ');
+  q = q.replace(/ضمن(\d+)كم/g, 'ضمن $1 كم ');
+  q = q.replace(/([^\s\d]+)(في|قريب|قريبة|حول|ضمن|بجانب|إلى|الى|من)(مني|موقعي|أبوظبي|ابوظبي|خليفة|خليفه|ياس|المشرف|مصفح|العين|دبي|الظفرة|الرويس)/gu, '$1 $2 $3');
+  q = q.replace(/(في|قريب|قريبة|حول|ضمن|بجانب|إلى|الى|من)(مني|موقعي|أبوظبي|ابوظبي|خليفة|خليفه|ياس|المشرف|مصفح|العين|دبي|الظفرة|الرويس)/gu, '$1 $2');
+  q = q.replace(/(ضمن)(\d+)/gu, '$1 $2');
+  q = q.replace(/(\d+)(كم|كيلومتر|متر)/gu, '$1 $2');
+
+  // 3. Common English & Arabic typos / misspellings dictionary
+  const typoMap = [
+    // Categories & facility types
+    { regex: /\b(?:centar|centre|centr|cntr)\b/gi, replacement: 'center' },
+    { regex: /\b(?:centars|centres|centrs|cntrs)\b/gi, replacement: 'centers' },
+    { regex: /\b(?:hosptial|hospitl|hosptl|hospita|hsopital)\b/gi, replacement: 'hospital' },
+    { regex: /\b(?:hosptials|hospitls|hosptls|hospitas)\b/gi, replacement: 'hospitals' },
+    { regex: /\b(?:pharamcy|pharmcy|parmacy|phramacy|pharmaci|farmacy)\b/gi, replacement: 'pharmacy' },
+    { regex: /\b(?:pharamcies|pharmcys|parmacies|pharmacys)\b/gi, replacement: 'pharmacies' },
+    { regex: /\b(?:clinc|clinck)\b/gi, replacement: 'clinic' },
+    { regex: /\b(?:clincs|clincks)\b/gi, replacement: 'clinics' },
+    { regex: /\b(?:scool|schol|skool|shcool|shool)\b/gi, replacement: 'school' },
+    { regex: /\b(?:scools|schols|skools|shschools)\b/gi, replacement: 'schools' },
+    { regex: /\b(?:universty|univercity)\b/gi, replacement: 'university' },
+    { regex: /\b(?:universties|univercities|univercitys)\b/gi, replacement: 'universities' },
+    { regex: /\b(?:staiton|staton|staion|statio|statn)\b/gi, replacement: 'station' },
+    { regex: /\b(?:staitons|statons|staions|statns)\b/gi, replacement: 'stations' },
+    { regex: /\b(?:vehical|vehecle|vehcle|vehicl)\b/gi, replacement: 'vehicle' },
+    { regex: /\b(?:vehicals|vehecles|vehcles|vehicls)\b/gi, replacement: 'vehicles' },
+    { regex: /\b(?:inspextion|inspeciton|inspecton|inspetion)\b/gi, replacement: 'inspection' },
+    { regex: /\b(?:inspextions|inspecitons|inspectons)\b/gi, replacement: 'inspections' },
+    { regex: /\b(?:emergancy|emergenci|imargency)\b/gi, replacement: 'emergency' },
+    { regex: /\b(?:goverment|govrenment|govrnment|govrment)\b/gi, replacement: 'government' },
+    { regex: /\b(?:facilty|faclity)\b/gi, replacement: 'facility' },
+    { regex: /\b(?:facilties|faclities)\b/gi, replacement: 'facilities' },
+    { regex: /\b(?:distric|distict|distrct)\b/gi, replacement: 'district' },
+    { regex: /\b(?:districs|disticts|distrcts)\b/gi, replacement: 'districts' },
+    { regex: /\b(?:direciton|directon|directin)\b/gi, replacement: 'direction' },
+    { regex: /\b(?:direcitons|directons|directins)\b/gi, replacement: 'directions' },
+    { regex: /\b(?:tution|tutition)\b/gi, replacement: 'tuition' },
+    { regex: /\b(?:curriculm|curriculam|curiculum)\b/gi, replacement: 'curriculum' },
+    { regex: /\b(?:resturant|restraunt|restaraunt)\b/gi, replacement: 'restaurant' },
+    { regex: /\b(?:resturants|restraunts|restaraunts)\b/gi, replacement: 'restaurants' },
+
+    // Geographic names
+    { regex: /\b(?:khalfia|khalifia|khalifah|kalifa|khelifa)\b/gi, replacement: 'khalifa' },
+    { regex: /\b(?:mushreef|mushref|moshrif)\b/gi, replacement: 'mushrif' },
+    { regex: /\b(?:mussafa|musafah|musaffah|mussaffa)\b/gi, replacement: 'musaffah' },
+    { regex: /\b(?:saadiyet|sadiyat|saadiat)\b/gi, replacement: 'saadiyat' },
+    { regex: /\b(?:bateen|albateen|batin|al\s*batin)\b/gi, replacement: 'al bateen' },
+    { regex: /\b(?:reem|alreem)\b/gi, replacement: 'al reem' },
+    { regex: /\b(?:dhafra|aldhafra|dafra|al\s*dafra)\b/gi, replacement: 'al dhafra' },
+    { regex: /\b(?:ruweis|rwais)\b/gi, replacement: 'ruwais' },
+    { regex: /\b(?:khalidya|khalidiya|khalidiyah)\b/gi, replacement: 'al khalidiyah' },
+
+    // Arabic common typos & normalizations
+    { regex: /مستشفي(?=\s|$)/g, replacement: 'مستشفى' },
+    { regex: /مستشفايات/g, replacement: 'مستشفيات' },
+    { regex: /مستشفا\b/g, replacement: 'مستشفى' },
+    { regex: /حدايق/g, replacement: 'حدائق' },
+    { regex: /قريبه/g, replacement: 'قريبة' },
+    { regex: /ابوظبي/g, replacement: 'أبوظبي' },
+    { regex: /صيدلايات/g, replacement: 'صيدليات' },
+    { regex: /مداراس/g, replacement: 'مدارس' },
+    { regex: /مركاز/g, replacement: 'مركز' },
+    { regex: /حديقه\b/g, replacement: 'حديقة' },
+    { regex: /محطه\b/g, replacement: 'محطة' },
+    { regex: /مدرسه\b/g, replacement: 'مدرسة' },
+    { regex: /عياده\b/g, replacement: 'عيادة' },
+    { regex: /صيدليه\b/g, replacement: 'صيدلية' },
+    { regex: /باصات/g, replacement: 'حافلات' },
+    { regex: /سيارات/g, replacement: 'مركبات' },
+    { regex: /فحص سيارات/g, replacement: 'فحص مركبات' }
+  ];
+
+  for (const { regex, replacement } of typoMap) {
+    q = q.replace(regex, replacement);
+  }
+
+  // 4. Collapse extra whitespace
+  q = q.replace(/\s+/g, ' ').trim();
+
+  return q;
+}
+
 /**
  * Global Taxonomy Configuration Covering all 18 GeoVision Datasets & Subcategories
  */
@@ -4286,7 +4409,9 @@ class SpatialAIEngine {
       return GEOVISION_SPATIAL_DATASET.filter(item => {
         const catMatch = isCategoryMatch(item.category, cat);
         const subMatch = isSubcategoryMatch(item.subcategory, subcat);
-        const sectorMatch = sectorFilter ? (item.sector === sectorFilter || item.type?.toLowerCase().includes(sectorFilter.toLowerCase()) || (sectorFilter === 'Government' && (item.subcategory === 'Public Schools' || item.subcategory === 'Charter Schools')) || (sectorFilter === 'Private' && item.subcategory === 'Private Schools')) : true;
+        const sectorMatch = sectorFilter
+          ? (item.sector === sectorFilter || (item.category && item.category.toLowerCase().includes(sectorFilter.toLowerCase())) || item.type?.toLowerCase().includes(sectorFilter.toLowerCase()) || (sectorFilter === 'Government' && (item.subcategory === 'Public Schools' || item.subcategory === 'Charter Schools')) || (sectorFilter === 'Private' && item.subcategory === 'Private Schools'))
+          : true;
         
         if (!catMatch || !subMatch || !sectorMatch) return false;
 
@@ -4652,12 +4777,10 @@ class SpatialAIEngine {
         if (!targetCatInfo) {
           return {
             intent: 'unsupported_layer',
-            querySummary: cleanMarkdownText(lang === 'ar' ? 'مقارنة فئة غير متوفرة' : 'Unsupported Category for Comparison'),
-            aiMessageText: cleanMarkdownText(lang === 'ar'
-              ? 'المقارنات المكانية بين المناطق مدعومة لفئات المرافق المسجلة في إمارة أبوظبي (مثل المدارس، المستشفيات، الحدائق، والمحطات). الفئة المطلوبة غير متوفرة في طبقات البيانات المكانية.'
-              : 'Cross-district spatial comparisons are supported for registered Abu Dhabi SDI categories (such as Schools, Hospitals, Parks, Industrial Facilities, and Transit Stations). The requested subject is not available in the spatial layers.'),
+            querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+            aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
             results: [],
-            structuredResults: { title: 'No Matching Layers', category: 'None', items: [], tabs: [] },
+            structuredResults: null,
             contextBadges: this.context.getActiveContextBadges(lang),
             chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
             mapAction: { type: 'fit_bounds' }
@@ -4841,12 +4964,10 @@ class SpatialAIEngine {
       if (!targetCatInfo) {
         return {
           intent: 'unsupported_layer',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'توزيع فئة غير متوفرة' : 'Unsupported Category for District Distribution'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? 'تحليل التوزيع الجغرافي عبر المناطق مدعوم لفئات المرافق المسجلة في أبوظبي (مثل الحدائق، المدارس، المراكز الصحية، ومحطات الحافلات). الفئة المطلوبة غير متوفرة في طبقات البيانات المكانية.'
-            : 'District distribution analytics are available for registered Abu Dhabi SDI facility layers (such as Parks, Schools, Healthcare, Government Centers, and Bus Stations). The requested topic or layer is not available in the spatial registry.'),
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
           results: [],
-          structuredResults: { title: 'No Matching Layers', category: 'None', items: [], tabs: [] },
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
           mapAction: { type: 'fit_bounds' }
@@ -4974,12 +5095,10 @@ class SpatialAIEngine {
       if (!targetCatInfo) {
         return {
           intent: 'unsupported_layer',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'إحصائية فئة غير متوفرة' : 'Unsupported Entity for Count Query'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? 'تتوفر إحصائيات الأعداد المكانية لفئات المرافق المسجلة في إمارة أبوظبي (مثل المدارس، المستشفيات، العيادات، الصيدليات، والحدائق). الفئة المطلوبة غير متوفرة في قاعدة البيانات المكانية.'
-            : 'Quantitative facility counts are available for registered Abu Dhabi SDI layers (such as Schools, Hospitals, Clinics, Pharmacies, Parks, and Transit). The requested entity is not in the active spatial database.'),
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
           results: [],
-          structuredResults: { title: 'No Matching Layers', category: 'None', items: [], tabs: [] },
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
           mapAction: { type: 'fit_bounds' }
@@ -5089,12 +5208,10 @@ class SpatialAIEngine {
       if (qLower.includes(kw)) {
         return {
           intent: 'unsupported_layer',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'طبقة بيانات غير متوفرة' : 'Requested layer not found in GIS database'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? `الطبقة المطلوبة "${kw}" غير متوفرة في قاعدة بيانات نظم المعلومات الجغرافية (SDI). الطبقات المتوفرة تشمل المدارس، المستشفيات، محطات الحافلات، والحدائق العامة.`
-            : `The requested layer or feature type "${kw}" is not available in the Abu Dhabi SDI GIS database. Available layers include Schools, Hospitals, Bus Stations, Parks, and Government Services.`),
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
           results: [],
-          structuredResults: { title: 'No Matching Layers', category: 'None', items: [], tabs: [] },
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
           mapAction: { type: 'fit_bounds' }
@@ -5525,7 +5642,14 @@ class SpatialAIEngine {
       qLower.includes('أكبر سعة') ||
       qLower.includes('اكبر سعة') ||
       qLower.includes('أكثر أسرة') ||
-      qLower.includes('اكثر اسرة')
+      qLower.includes('اكثر اسرة') ||
+      qLower.includes('أكبر عدد من الأسرة') ||
+      qLower.includes('اكبر عدد من الاسرة') ||
+      qLower.includes('أكبر عدد من الأسرّة') ||
+      qLower.includes('اكبر عدد من الاسرّة') ||
+      qLower.includes('أكثر عدد من الأسرّة') ||
+      qLower.includes('أكبر عدد أسرة') ||
+      qLower.includes('اكبر عدد اسرة')
     ) {
       rankType = 'most_beds';
       rankSummary = 'sorted by capacity descending';
@@ -5682,13 +5806,15 @@ class SpatialAIEngine {
           ? `أبعد ${nounAr} عنك في **${locAr}** هو **${topItem.arabicTitle || topItem.title}** (يبعد **${topItem.distanceKm} كم**).`
           : `The farthest ${nounEn} from you in **${locEn}** is **${topItem.title}** (distance: **${topItem.distanceKm} km**).`;
       } else if (rankType === 'most_beds') {
+        const bedVal = topItem.beds || topItem.capacity || topItem.students;
         aiResponseText = lang === 'ar'
-          ? `أكبر ${nounAr} في **${locAr}** هي **${topItem.arabicTitle || topItem.title}** بسعة **${topItem.beds || topItem.students}**.`
-          : `The largest ${nounEn} in **${locEn}** is **${topItem.title}**, with a capacity of **${topItem.beds || topItem.students}**.`;
+          ? `المستشفى الأكثر سعة من حيث عدد الأسرّة في **${locAr}** هو **${topItem.arabicTitle || topItem.title}** بسعة **${bedVal} سريراً**.`
+          : `The ${nounEn} with the most beds in **${locEn}** is **${topItem.title}**, with a capacity of **${bedVal} beds**.`;
       } else if (rankType === 'least_beds') {
+        const bedVal = topItem.beds || topItem.capacity || topItem.students;
         aiResponseText = lang === 'ar'
-          ? `أصغر ${nounAr} في **${locAr}** هي **${topItem.arabicTitle || topItem.title}** بسعة **${topItem.beds || topItem.students}**.`
-          : `The smallest ${nounEn} in **${locEn}** is **${topItem.title}**, with a capacity of **${topItem.beds || topItem.students}**.`;
+          ? `أصغر ${nounAr} في **${locAr}** هي **${topItem.arabicTitle || topItem.title}** بسعة **${bedVal}**.`
+          : `The smallest ${nounEn} in **${locEn}** is **${topItem.title}**, with a capacity of **${bedVal} beds**.`;
       } else if (rankType === 'least_emissions') {
         aiResponseText = lang === 'ar'
           ? `المنشأة الأقل انبعاثات في **${locAr}** هي **${topItem.arabicTitle || topItem.title}** بانبعاثات **${topItem.emissions?.toLocaleString()} طن سنوياً**.`
@@ -5705,8 +5831,11 @@ class SpatialAIEngine {
       }
     }
 
+    const resultDataset = (topNLimit && topNLimit > 1) ? ranked.slice(0, topNLimit) : [topItem];
+
     return {
-      ranked,
+      ranked: resultDataset,
+      fullRanked: ranked,
       topItem,
       rankType,
       rankSummary,
@@ -5844,24 +5973,13 @@ class SpatialAIEngine {
         }
 
         const chips = this.generateUnsupportedCapabilityAlternatives(lang, cap, qLower);
-        const resItems = this.context.currentResults && this.context.currentResults.length > 0 ? this.context.currentResults : [];
 
         return {
           intent: 'unsupported_capability',
-          querySummary: cleanMarkdownText(lang === 'ar' ? `قدرة تحليلية غير متوفرة: ${capName}` : `Unsupported Capability: ${capName}`),
-          aiMessageText: cleanMarkdownText(aiMessageText),
-          results: resItems,
-          structuredResults: resItems.length > 0 ? {
-            title: lang === 'ar' ? `النتائج المكانية النشطة (${resItems.length})` : `Active Spatial Context (${resItems.length})`,
-            category: this.context.dataset || 'Context',
-            items: resItems,
-            tabs: []
-          } : {
-            title: lang === 'ar' ? 'قدرة تحليلية غير متوفرة' : 'Unsupported Capability',
-            category: 'None',
-            items: [],
-            tabs: []
-          },
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
+          results: [],
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips,
           mapAction: { type: 'fit_bounds' }
@@ -7054,22 +7172,39 @@ class SpatialAIEngine {
     if (lang !== 'ar' && /[\u0600-\u06FF]/.test(rawQuery)) {
       lang = 'ar';
     }
-    const q = (rawQuery || '').trim();
+    const normalizedQ = normalizeUserSpatialQuery(rawQuery);
+    const q = (normalizedQ || rawQuery || '').trim();
     const qLower = q.toLowerCase();
     this.context.conversationTurn += 1;
+
+    const isNearMeIntent = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\s+to\s+me|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|قريبة\s*مني|القريبة\s*مني|بالقرب\s*مني|الأقرب\s*إلي|أقرب\s*إلي|أقرب\s*مني|الأقرب\s*مني|موقعي|موقعي\s*الحالي|مني)/i.test(qLower);
+    if (isNearMeIntent) {
+      this.context.location = null;
+      this.context.locationCoordinates = null;
+    }
+
+    if (options.context) {
+      Object.assign(this.context, options.context);
+    }
+    if (options.lastSearchResults && (!this.context.currentResults || this.context.currentResults.length === 0)) {
+      this.context.currentResults = options.lastSearchResults;
+      if (!this.context.dataset && options.lastSearchResults[0]?.category) {
+        this.context.dataset = options.lastSearchResults[0].category;
+      }
+    }
 
     if (options.selectedLocation) {
       this.context.selectedFeature = options.selectedLocation;
     }
 
     // 0.0 CHECK FOR NATURAL LANGUAGE APPLICATION CONTROL COMMANDS (Theme, Language, Basemap, Navigation, Layers, Legend, Locate, Draw, Print)
-    const appControlRes = this.evaluateApplicationControlCommand(rawQuery, lang, options);
+    const appControlRes = this.evaluateApplicationControlCommand(q, lang, options);
     if (appControlRes) {
       return appControlRes;
     }
 
     // 0.01 CHECK FOR ROUTE / GET DIRECTIONS INTENT
-    const routeRes = this.evaluateRouteIntent(qLower, rawQuery, lang, options);
+    const routeRes = this.evaluateRouteIntent(qLower, q, lang, options);
     if (routeRes) {
       return routeRes;
     }
@@ -7104,18 +7239,17 @@ class SpatialAIEngine {
     const unsupportedKeywords = [
       'rocket', 'launchpad', 'submarine', 'space station', 'nuclear', 'missile',
       'cake', 'recipe', 'how to make', 'cook', 'stock price', 'bitcoin', 'crypto',
+      'python', 'tutorial', 'code', 'movie review',
       'صاروخ', 'منصة إطلاق', 'غواصة', 'محطة فضاء', 'نووي', 'كعكة', 'وصفة', 'بيتكوين'
     ];
     for (const kw of unsupportedKeywords) {
       if (qLower.includes(kw)) {
         return {
           intent: 'unsupported_layer',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'استفسار غير مكاني أو طبقة غير متوفرة' : 'Non-spatial or unsupported GIS request'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? `أنا مساعد GeoVision الذكي للتحليلات المكانية ونظم المعلومات الجغرافية (GIS) في أبوظبي. استفسارك عن "${kw}" خارج نطاق البيانات المكانية المتوفرة. يمكنك الاستفسار عن المدارس، المستشفيات، المحطات، أو تحليل المناطق.`
-            : `I am GeoVision's AI spatial assistant for Abu Dhabi GIS analytics. Your query about "${kw}" is not available in the Abu Dhabi SDI GIS database. You can ask about schools, hospitals, transit, parks, or spatial proximity.`),
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
           results: [],
-          structuredResults: { title: 'No Matching Layers', category: 'None', items: [], tabs: [] },
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
           mapAction: { type: 'fit_bounds' }
@@ -7472,7 +7606,7 @@ class SpatialAIEngine {
 
     const radMatchProgressive = qLower.match(/within\s+([\d.]+)\s*km/i) || qLower.match(/ضمن\s*([\d.]+)\s*كم/i);
 
-    const isProgressiveFollowUp = !isCategorySwitch && (
+    const isProgressiveFollowUp = !isCategorySwitch && !isNearMeIntent && (
       refinedSubcat !== null ||
       radMatchProgressive !== null ||
       qLower.startsWith('only ') ||
@@ -7682,8 +7816,6 @@ class SpatialAIEngine {
       else targetCity = 'Abu Dhabi';
     }
 
-    const isNearMeIntent = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\s+to\s+me|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|قريبة\s*مني|القريبة\s*مني|بالقرب\s*مني|الأقرب\s*إلي|أقرب\s*إلي|أقرب\s*مني|الأقرب\s*مني|موقعي|موقعي\s*الحالي|مني)/i.test(qLower);
-
     // Proximity / Radius Detection
     const radMatch = qLower.match(/within\s+([\d.]+)\s*km/i) || qLower.match(/ضمن\s*([\d.]+)\s*كم/i);
     let searchRadiusKm = null;
@@ -7758,12 +7890,10 @@ class SpatialAIEngine {
       if (!ignoreWords.includes(candidateLoc) && candidateLoc.length > 3 && !Object.keys(DISTRICT_COORDINATES).some(k => candidateLoc.includes(k))) {
         return {
           intent: 'zero_results',
-          querySummary: cleanMarkdownText(lang === 'ar' ? `لم يتم العثور على موقع "${locInMatch[1]}"` : `Location "${locInMatch[1]}" not found`),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? `لم نتمكن من العثور على منطقة أو حي باسم "${locInMatch[1]}" في قاعدة بيانات إمارة أبوظبي. جرب البحث في مناطق مثل مدينة خليفة، المشرف، جزيرة ياس، أو الخالدية.`
-            : `No registered district or neighborhood found matching "${locInMatch[1]}" in the Abu Dhabi SDI database. Try searching in areas like Khalifa City, Al Mushrif, Yas Island, or Al Khalidiyah.`),
+          querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
           results: [],
-          structuredResults: { title: 'No Results Found', category: 'None', items: [], tabs: [] },
+          structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: this.generateContextualSuggestions('zero_results', lang, {}, []),
           mapAction: { type: 'fit_bounds' }
@@ -7964,15 +8094,12 @@ class SpatialAIEngine {
         );
 
         if (!textMatchedPOI) {
-          const locName = lang === 'ar' ? (targetDistrict.arabicName || targetDistrict.name) : targetDistrict.name;
           return {
             intent: 'unsupported_layer',
-            querySummary: cleanMarkdownText(lang === 'ar' ? `فئة غير متوفرة: ${unmappedEntity}` : `Unsupported Category: ${unmappedEntity}`),
-            aiMessageText: cleanMarkdownText(lang === 'ar'
-              ? `استفسارك عن "${unmappedEntity}" في ${locName} غير متوفر ضمن طبقات البيانات المكانية لـ GeoVision في إمارة أبوظبي. تدعم المنصة 18 فئة مكانية تشمل المدارس، المستشفيات، الحدائق، محطات النقل (بما فيها مراكز فحص المركبات ومحطات الوقود)، المرافق الصناعية، والخدمات الحكومية.`
-              : `Your query about "${unmappedEntity}" in ${locName} is not available in the Abu Dhabi SDI GIS database. GeoVision provides spatial analytics across 18 facility categories including Healthcare, Education, Parks, Industrial, Government Services, and Transportation (including Vehicle Inspection Centers, Petrol Stations, Transit).`),
+            querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+            aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
             results: [],
-            structuredResults: { title: 'No Matching Spatial Layers', category: 'None', items: [], tabs: [] },
+            structuredResults: null,
             contextBadges: this.context.getActiveContextBadges(lang),
             chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
             mapAction: { type: 'fit_bounds' }
@@ -7991,12 +8118,10 @@ class SpatialAIEngine {
     if (!hasRecognizedEntity && !isExplicitBrowseAll) {
       return {
         intent: 'unsupported_layer',
-        querySummary: cleanMarkdownText(lang === 'ar' ? 'موضوع أو طبقة غير متوفرة' : 'Unsupported Layer or Query Subject'),
-        aiMessageText: cleanMarkdownText(lang === 'ar'
-          ? `استفسارك عن "${q}" غير متوفر ضمن طبقات البيانات المكانية لـ GeoVision في إمارة أبوظبي. تدعم المنصة 18 فئة مكانية تشمل المدارس، المستشفيات، الحدائق، المرافق الصناعية، محطات النقل، والخدمات الحكومية.`
-          : `Your query about "${q}" is not available in the Abu Dhabi SDI GIS database. GeoVision provides spatial analytics and registries across 18 facility categories including Healthcare, Education, Parks, Industrial, Government Services, Transportation, and Tourism.`),
+        querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+        aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
         results: [],
-        structuredResults: { title: 'No Matching Spatial Layers', category: 'None', items: [], tabs: [] },
+        structuredResults: null,
         contextBadges: this.context.getActiveContextBadges(lang),
         chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
         mapAction: { type: 'fit_bounds' }
@@ -8012,15 +8137,16 @@ class SpatialAIEngine {
 
     let aiResponseText = '';
     if (count === 0) {
-      if (lang === 'ar') {
-        aiResponseText = targetDistrict
-          ? `لم يتم العثور على أي ${catAr} في ${targetDistrict.arabicName || targetDistrict.name}. يمكنك تجربة توسيع نطاق البحث أو الاستعلام عن كافة مناطق أبوظبي.`
-          : `لم يتم العثور على نتائج تطابق ${catAr} وفقاً لمعايير البحث المحددة.`;
-      } else {
-        aiResponseText = targetDistrict
-          ? `No ${catEn} were found in ${targetDistrict.name}. You can try expanding the search radius or searching across Abu Dhabi.`
-          : `No matching ${catEn} were found matching your search criteria.`;
-      }
+      return {
+        intent: 'zero_results',
+        querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+        aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
+        results: [],
+        structuredResults: null,
+        contextBadges: this.context.getActiveContextBadges(lang),
+        chips: this.generateContextualSuggestions('zero_results', lang, options, []),
+        mapAction: { type: 'fit_bounds' }
+      };
     } else if (lang === 'ar') {
       if (searchRadiusKm) {
         aiResponseText = `تم العثور على ${count} من ${catAr} ضمن نطاق ${searchRadiusKm} كم من ${targetDistrict?.arabicName || 'موقعك'} وعرضها على الخريطة.`;
@@ -9002,5 +9128,15 @@ export function evaluatePrintIntent(rawQuery = '', lang = 'en', options = {}) {
     ...intentResult
   };
 }
+
+/**
+ * Natural language spatial query helper function
+ */
+export function processNaturalLanguageQuery(query = '', options = {}) {
+  const categoryFilter = typeof options === 'string' ? options : (options?.categoryFilter || '');
+  const lang = typeof options === 'object' && options?.lang ? options.lang : 'en';
+  return spatialAIEngineInstance.processNaturalLanguageQuery(query, categoryFilter, lang, typeof options === 'object' ? options : {});
+}
+
 
 

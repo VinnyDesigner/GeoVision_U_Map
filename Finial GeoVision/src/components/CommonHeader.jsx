@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bookmark, Heart, Menu, X, LogOut } from 'lucide-react';
 import leftLogo from '../assets/left.png';
 import rightLogo from '../assets/right.png';
@@ -42,6 +42,9 @@ export default function CommonHeader({
   setAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isFeedbackOpen,
+  setIsFeedbackOpen,
+  currentUser,
   t,
   handleSearchSubmit,
   showToast,
@@ -49,6 +52,7 @@ export default function CommonHeader({
   setActiveTab
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const profileBtnRef = useRef(null);
   const isGreyBasemap = activeBasemap === 'light';
   const currentLeftLogo = theme === 'dark' ? leftLogoDark : leftLogo;
   const currentRightLogo = theme === 'dark' ? rightLogoDark : rightLogo;
@@ -149,6 +153,7 @@ export default function CommonHeader({
         
         <div className="profile-menu-wrapper" ref={profileMenuRef}>
           <button 
+            ref={profileBtnRef}
             className={`landing-icon-control ${isProfileOpen ? 'landing-icon-control--active' : ''}`} 
             onClick={() => setIsProfileOpen(prev => !prev)}
             title={t.profile || 'Profile'}
@@ -158,19 +163,7 @@ export default function CommonHeader({
 
           {isProfileOpen && (
             <div className="profile-dropdown">
-              <button 
-                className="profile-item" 
-                onClick={() => { 
-                  setIsProfileOpen(false); 
-                  setShowMap(true);
-                  if (setIsSidebarOpen) setIsSidebarOpen(true);
-                  if (setActiveTab) setActiveTab('history');
-                  showToast(lang === 'ar' ? 'تم فتح سجل البحث' : "Search History Opened"); 
-                }}
-              >
-                <img src={historyIcon} alt="History" className="profile-item-icon" />
-                <span>{t.history}</span>
-              </button>
+
               {isLoggedIn && (
                 <button 
                   className="profile-item" 
@@ -186,7 +179,13 @@ export default function CommonHeader({
                   <span>{t.favorites || t.collections}</span>
                 </button>
               )}
-              <button className="profile-item" onClick={() => { setIsProfileOpen(false); showToast(lang === 'ar' ? 'تم فتح نافذة الملاحظات والتقييم' : "Share Feedback modal opened"); }}>
+              <button 
+                className="profile-item" 
+                onClick={() => { 
+                  setIsProfileOpen(false); 
+                  if (setIsFeedbackOpen) setIsFeedbackOpen(true);
+                }}
+              >
                 <img src={feedbackIcon} alt="Feedback" className="profile-item-icon" />
                 <span>{t.shareFeedback}</span>
               </button>
@@ -285,20 +284,6 @@ export default function CommonHeader({
 
               <div className="mobile-menu-divider" />
 
-              <button 
-                className="mobile-menu-btn"
-                onClick={() => { 
-                  setIsMobileMenuOpen(false); 
-                  setShowMap(true); 
-                  if (setIsSidebarOpen) setIsSidebarOpen(true);
-                  if (setActiveTab) setActiveTab('history');
-                  showToast(lang === 'ar' ? 'تم فتح سجل البحث' : "Search History Opened"); 
-                }}
-              >
-                <img src={historyIcon} alt="History" className="profile-item-icon" />
-                <span>{t.history}</span>
-              </button>
-
               {isLoggedIn && (
                 <button 
                   className="mobile-menu-btn" 
@@ -317,7 +302,10 @@ export default function CommonHeader({
 
               <button 
                 className="mobile-menu-btn"
-                onClick={() => { setIsMobileMenuOpen(false); showToast(lang === 'ar' ? 'تم فتح نافذة الملاحظات والتقييم' : "Share Feedback modal opened"); }}
+                onClick={() => { 
+                  setIsMobileMenuOpen(false); 
+                  if (setIsFeedbackOpen) setIsFeedbackOpen(true);
+                }}
               >
                 <img src={feedbackIcon} alt="Feedback" className="profile-item-icon" />
                 <span>{t.shareFeedback}</span>

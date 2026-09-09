@@ -32,6 +32,8 @@ export default function LandingPage({
   setAuthState: propSetAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isFeedbackOpen,
+  setIsFeedbackOpen,
   t,
   handleSearchSubmit,
   handleUnifiedSearch,
@@ -368,6 +370,8 @@ export default function LandingPage({
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isFeedbackOpen={isFeedbackOpen}
+        setIsFeedbackOpen={setIsFeedbackOpen}
         t={t}
         handleSearchSubmit={handleSearchSubmit}
         showToast={showToast}

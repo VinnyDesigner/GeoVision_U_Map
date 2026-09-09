@@ -130,6 +130,7 @@ import LeafletMap from './components/LeafletMap.jsx';
 import CommonHeader from './components/CommonHeader.jsx';
 import Toast from './components/Toast.jsx';
 import AuthModal from './components/AuthModal.jsx';
+import FeedbackModal from './components/FeedbackModal.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AboutUsPage from './pages/AboutUsPage.jsx';
 
@@ -182,6 +183,7 @@ function App() {
   const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [authState, setAuthState] = useState('login');
   const [isAboutUsOpen, setIsAboutUsOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('villa-royale');
@@ -1024,6 +1026,8 @@ function App() {
   const [isContextPopoverOpen, setIsContextPopoverOpen] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isOrientingCompass, setIsOrientingCompass] = useState(false);
   const [isSessionsAccordionOpen, setIsSessionsAccordionOpen] = useState(true);
   const [renamingSessionId, setRenamingSessionId] = useState(null);
   const [renameSessionText, setRenameSessionText] = useState('');
@@ -1031,28 +1035,94 @@ function App() {
   const [editingMessageText, setEditingMessageText] = useState('');
   const contextPopoverRef = useRef(null);
 
-  // 1. Automatically request user geolocation on startup
-  useEffect(() => {
+  const handleLocateUser = (onSuccess = null, onError = null) => {
+    setIsLocating(true);
+    showToast(lang === 'ar' ? 'جاري تحديد موقعك الجغرافي...' : 'Locating your position...');
+
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
+          setIsLocating(false);
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const userLocObj = {
+            lat,
+            lon,
             name: 'Current Location',
-            arabicName: 'موقعك الحالي'
+            arabicName: 'موقعك الحالي',
+            isUserLocation: true
           };
-          console.log('[GeoVision] Startup Geolocation resolved:', coords);
-          setRealUserLocation(coords);
+          setRealUserLocation(userLocObj);
           setLocationPermissionDenied(false);
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.flyTo([lat, lon], 15, { animate: true, duration: 1.2 });
+          }
+          showToast(lang === 'ar' ? 'تم تحديد موقعك الحالي والتركيز عليه بنجاح' : 'Centered on your current location');
+          addLog('Location', `Acquired coordinates: ${lat.toFixed(5)}, ${lon.toFixed(5)}`, 'success');
+          if (typeof onSuccess === 'function') onSuccess(userLocObj);
         },
         (err) => {
-          console.warn('[GeoVision] Startup Geolocation info:', err.message);
+          setIsLocating(false);
+          console.warn('[GeoVision] Geolocation access error:', err);
+          if (err && err.code === 1) {
+            // Permission Denied
+            setLocationPermissionDenied(true);
+            showToast(lang === 'ar' ? 'تم رفض إذن الوصول للموقع. يرجى السماح به في إعدادات المتصفح.' : 'Location permission denied. Please enable location access in browser settings.');
+            addLog('Location', 'Permission denied by user or browser policy', 'warning');
+            if (typeof onError === 'function') onError(err);
+          } else {
+            // Timeout or position unavailable (common on desktop PCs without GPS chips)
+            const fallbackLoc = {
+              lat: 24.4539,
+              lon: 54.3773,
+              name: 'Abu Dhabi (Default Location)',
+              arabicName: 'أبوظبي (الموقع الافتراضي)',
+              isUserLocation: true
+            };
+            setRealUserLocation(fallbackLoc);
+            if (mapInstanceRef.current) {
+              mapInstanceRef.current.flyTo([fallbackLoc.lat, fallbackLoc.lon], 15, { animate: true, duration: 1.2 });
+            }
+            showToast(lang === 'ar' ? 'تعذر جلب GPS المباشر للجهاز، تم التوجيه إلى مركز أبوظبي' : 'Direct GPS unavailable on device; centered on Abu Dhabi');
+            addLog('Location', 'Device GPS unavailable, falling back to Abu Dhabi center', 'info');
+            if (typeof onSuccess === 'function') onSuccess(fallbackLoc);
+            else if (typeof onError === 'function') onError(err);
+          }
         },
-        { timeout: 10000, enableHighAccuracy: true }
+        { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
       );
+    } else {
+      setIsLocating(false);
+      const fallbackLoc = {
+        lat: 24.4539,
+        lon: 54.3773,
+        name: 'Abu Dhabi (Default Location)',
+        arabicName: 'أبوظبي (الموقع الافتراضي)',
+        isUserLocation: true
+      };
+      setRealUserLocation(fallbackLoc);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([fallbackLoc.lat, fallbackLoc.lon], 15, { animate: true, duration: 1.2 });
+      }
+      showToast(lang === 'ar' ? 'خاصية تحديد الموقع غير مدعومة، تم التوجيه إلى أبوظبي' : 'Geolocation unsupported; centered on Abu Dhabi');
+      if (typeof onError === 'function') onError(new Error('Geolocation unsupported'));
     }
-  }, []);
+  };
+
+  const handleOrientNorth = () => {
+    setIsOrientingCompass(true);
+    setTimeout(() => {
+      setIsOrientingCompass(false);
+    }, 700);
+
+    if (mapInstanceRef.current) {
+      const center = mapInstanceRef.current.getCenter();
+      mapInstanceRef.current.panTo(center, { animate: true, duration: 0.5 });
+    }
+
+    showToast(lang === 'ar' ? 'تمت إعادة ضبط توجيه الخريطة نحو الشمال (0°)' : 'Map re-oriented to True North (0°)');
+    addLog('Compass', 'Map view re-oriented to True North (0°)', 'info');
+  };
 
   // Synchronize chatSessions whenever user authentication changes
   useEffect(() => {
@@ -1995,8 +2065,8 @@ function App() {
     let effectiveUserLoc = userLocationOverride !== undefined ? userLocationOverride : realUserLocation;
     let effectivePermDenied = locationPermissionDeniedOverride !== undefined ? locationPermissionDeniedOverride : locationPermissionDenied;
 
-    // Check if the query is a near-me intent without prior location or permission
-    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|القريبة\s*مني|موقعي|موقعي\s*الحالي)/i.test(cleanQuery);
+    // Check if the query is a near-me / user-location intent (e.g. near me, nearest, closest, within x km) without prior location or permission
+    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\b|closest\b|my\s+location|current\s+location|from\s+me|of\s+me|within\s+\d+\s*(?:km|kilometer|meters?|m\b)|بجانبي|حولي|بالقرب\s*مني|(?:قريب|قريبة|القريب|القريبة)\s*مني|أقرب|الأقرب|موقعي|موقعي\s*الحالي|ضمن\s*\d+\s*كم|في\s*نطاق\s*\d+\s*كم|على\s*بعد\s*\d+\s*كم)/i.test(cleanQuery);
 
     if (isNearMe && !effectiveUserLoc && !effectivePermDenied && typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -2004,7 +2074,7 @@ function App() {
           const coords = {
             lat: pos.coords.latitude,
             lon: pos.coords.longitude,
-            name: 'Current Location',
+            name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
             arabicName: 'موقعك الحالي'
           };
           setRealUserLocation(coords);
@@ -2012,6 +2082,7 @@ function App() {
           handleUnifiedSearch({ ...searchOptions, userLocationOverride: coords, locationPermissionDeniedOverride: false });
         },
         (err) => {
+          console.warn('[GeoVision] Geolocation denied or unavailable:', err?.message);
           setLocationPermissionDenied(true);
           handleUnifiedSearch({ ...searchOptions, userLocationOverride: null, locationPermissionDeniedOverride: true });
         },
@@ -2098,21 +2169,7 @@ function App() {
             setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend');
             break;
           case 'LOCATE_USER':
-            if (typeof navigator !== 'undefined' && navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  const coords = [pos.coords.latitude, pos.coords.longitude];
-                  setRealUserLocation({ lat: coords[0], lon: coords[1], name: 'Current Location', arabicName: 'موقعك الحالي' });
-                  if (mapInstanceRef.current) mapInstanceRef.current.flyTo(coords, 15);
-                },
-                (err) => {
-                  if (mapInstanceRef.current) mapInstanceRef.current.flyTo([24.4539, 54.3773], 15);
-                },
-                { timeout: 10000, enableHighAccuracy: true }
-              );
-            } else {
-              if (mapInstanceRef.current) mapInstanceRef.current.flyTo([24.4539, 54.3773], 15);
-            }
+            handleLocateUser();
             break;
           case 'OPEN_DRAW':
             setActiveLeftPopover('draw');
@@ -2867,7 +2924,52 @@ function App() {
   if (!showMap) {
     if (isAboutUsOpen) {
       return (
-        <AboutUsPage
+        <>
+          <AboutUsPage
+            activeBasemap={activeBasemap}
+            showMap={showMap}
+            setShowMap={setShowMap}
+            isCategoryDrawerOpen={isCategoryDrawerOpen}
+            setIsCategoryDrawerOpen={setIsCategoryDrawerOpen}
+            lang={lang}
+            setLang={setLang}
+            theme={theme}
+            setTheme={setTheme}
+            isProfileOpen={isProfileOpen}
+            setIsProfileOpen={setIsProfileOpen}
+            profileMenuRef={profileMenuRef}
+            isLoggedIn={isLoggedIn}
+            setIsLoggedIn={setIsLoggedIn}
+            isSignInOpen={isSignInOpen}
+            setIsSignInOpen={setIsSignInOpen}
+            authState={authState}
+            setAuthState={setAuthState}
+            isAboutUsOpen={isAboutUsOpen}
+            setIsAboutUsOpen={setIsAboutUsOpen}
+            isFeedbackOpen={isFeedbackOpen}
+            setIsFeedbackOpen={setIsFeedbackOpen}
+            currentUser={currentUser}
+            t={t}
+            handleSearchSubmit={handleSearchSubmit}
+            showToast={showToast}
+            setIsSidebarOpen={setIsSidebarOpen}
+            setActiveTab={setActiveTab}
+          />
+          <FeedbackModal
+            isOpen={isFeedbackOpen}
+            onClose={() => setIsFeedbackOpen(false)}
+            lang={lang}
+            theme={theme}
+            showToast={showToast}
+            currentUser={currentUser}
+          />
+        </>
+      );
+    }
+
+    return (
+      <>
+        <LandingPage
           activeBasemap={activeBasemap}
           showMap={showMap}
           setShowMap={setShowMap}
@@ -2882,59 +2984,43 @@ function App() {
           profileMenuRef={profileMenuRef}
           isLoggedIn={isLoggedIn}
           setIsLoggedIn={setIsLoggedIn}
+          currentUser={currentUser}
+          setCurrentUser={setCurrentUser}
+          isGuest={isGuest}
+          setIsGuest={setIsGuest}
           isSignInOpen={isSignInOpen}
           setIsSignInOpen={setIsSignInOpen}
           authState={authState}
           setAuthState={setAuthState}
           isAboutUsOpen={isAboutUsOpen}
           setIsAboutUsOpen={setIsAboutUsOpen}
+          isFeedbackOpen={isFeedbackOpen}
+          setIsFeedbackOpen={setIsFeedbackOpen}
           t={t}
           handleSearchSubmit={handleSearchSubmit}
+          handleUnifiedSearch={handleUnifiedSearch}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          categorySearchQuery={categorySearchQuery}
+          setCategorySearchQuery={setCategorySearchQuery}
+          expandedCategory={expandedCategory}
+          setExpandedCategory={setExpandedCategory}
+          selectedSubcategories={selectedSubcategories}
+          setSelectedSubcategories={setSelectedSubcategories}
           showToast={showToast}
+          toastMessage={toastMessage}
           setIsSidebarOpen={setIsSidebarOpen}
           setActiveTab={setActiveTab}
         />
-      );
-    }
-
-    return (
-      <LandingPage
-        activeBasemap={activeBasemap}
-        showMap={showMap}
-        setShowMap={setShowMap}
-        isCategoryDrawerOpen={isCategoryDrawerOpen}
-        setIsCategoryDrawerOpen={setIsCategoryDrawerOpen}
-        lang={lang}
-        setLang={setLang}
-        theme={theme}
-        setTheme={setTheme}
-        isProfileOpen={isProfileOpen}
-        setIsProfileOpen={setIsProfileOpen}
-        profileMenuRef={profileMenuRef}
-        isLoggedIn={isLoggedIn}
-        setIsLoggedIn={setIsLoggedIn}
-        isSignInOpen={isSignInOpen}
-        setIsSignInOpen={setIsSignInOpen}
-        authState={authState}
-        setAuthState={setAuthState}
-        isAboutUsOpen={isAboutUsOpen}
-        setIsAboutUsOpen={setIsAboutUsOpen}
-        t={t}
-        handleSearchSubmit={handleSearchSubmit}
-        handleUnifiedSearch={handleUnifiedSearch}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        categorySearchQuery={categorySearchQuery}
-        setCategorySearchQuery={setCategorySearchQuery}
-        expandedCategory={expandedCategory}
-        setExpandedCategory={setExpandedCategory}
-        selectedSubcategories={selectedSubcategories}
-        setSelectedSubcategories={setSelectedSubcategories}
-        showToast={showToast}
-        toastMessage={toastMessage}
-        setIsSidebarOpen={setIsSidebarOpen}
-        setActiveTab={setActiveTab}
-      />
+        <FeedbackModal
+          isOpen={isFeedbackOpen}
+          onClose={() => setIsFeedbackOpen(false)}
+          lang={lang}
+          theme={theme}
+          showToast={showToast}
+          currentUser={currentUser}
+        />
+      </>
     );
   }
 
@@ -2963,6 +3049,9 @@ function App() {
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isFeedbackOpen={isFeedbackOpen}
+        setIsFeedbackOpen={setIsFeedbackOpen}
+        currentUser={currentUser}
         t={t}
         handleSearchSubmit={handleSearchSubmit}
         showToast={showToast}
@@ -4437,7 +4526,7 @@ function App() {
                     style={{
                       fontSize: '15px',
                       fontWeight: 700,
-                      color: '#0F172A',
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
                       margin: 0,
                       padding: 0,
                       lineHeight: '1.2',
@@ -4453,8 +4542,8 @@ function App() {
                     onClick={() => setIsSidebarOpen(false)}
                     title={lang === 'ar' ? 'طي اللوحة' : 'Collapse Categories Panel'}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.75)',
-                      border: '1px solid rgba(255, 255, 255, 0.85)',
+                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.75)',
+                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid rgba(255, 255, 255, 0.85)',
                       borderRadius: '8px',
                       width: '32px',
                       height: '32px',
@@ -4462,12 +4551,12 @@ function App() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
-                      color: '#004B87',
-                      boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                      color: theme === 'dark' ? '#FFFFFF' : '#004B87',
+                      boxShadow: theme === 'dark' ? '0 2px 8px rgba(0, 0, 0, 0.35)' : '0 2px 6px rgba(0, 43, 91, 0.08)',
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    <PanelLeftClose size={18} color="#004B87" strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                    <PanelLeftClose size={18} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
                   </button>
                 </div>
 
@@ -4491,10 +4580,10 @@ function App() {
                       height: '38px',
                       padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
                       borderRadius: '8px',
-                      border: '1px solid rgba(226, 232, 240, 0.9)',
-                      background: 'rgba(255, 255, 255, 0.85)',
+                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.9)',
+                      background: theme === 'dark' ? 'rgba(14, 34, 70, 0.50)' : 'rgba(255, 255, 255, 0.85)',
                       fontSize: '13px',
-                      color: '#0F172A',
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
                       outline: 'none',
                       boxSizing: 'border-box',
                       textAlign: lang === 'ar' ? 'right' : 'left'
@@ -4502,7 +4591,7 @@ function App() {
                   />
                   <Search
                     size={15}
-                    color="#94A3B8"
+                    color={theme === 'dark' ? '#94A3B8' : '#94A3B8'}
                     style={{
                       position: 'absolute',
                       right: lang === 'ar' ? 'auto' : '10px',
@@ -4550,20 +4639,24 @@ function App() {
                               justifyContent: 'space-between',
                               height: '38px',
                               padding: '0 12px',
-                              background: isExpanded ? `${catColor}12` : 'rgba(255, 255, 255, 0.75)',
-                              border: isExpanded ? `1px solid ${catColor}40` : '1px solid rgba(226, 232, 240, 0.8)',
+                              background: isExpanded ? (theme === 'dark' ? `${catColor}28` : `${catColor}12`) : (theme === 'dark' ? 'rgba(14, 38, 77, 0.50)' : 'rgba(255, 255, 255, 0.75)'),
+                              border: isExpanded ? (theme === 'dark' ? `1px solid ${catColor}70` : `1px solid ${catColor}40`) : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(226, 232, 240, 0.8)'),
                               borderLeft: lang === 'ar' ? 'none' : (isExpanded ? `3px solid ${catColor}` : '3px solid transparent'),
                               borderRight: lang === 'ar' ? (isExpanded ? `3px solid ${catColor}` : '3px solid transparent') : 'none',
                               borderRadius: '8px',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease',
-                              boxShadow: isExpanded ? `0 2px 6px ${catColor}20` : '0 1px 3px rgba(0, 0, 0, 0.02)'
+                              boxShadow: isExpanded ? `0 2px 8px ${catColor}30` : (theme === 'dark' ? '0 2px 6px rgba(0, 0, 0, 0.25)' : '0 1px 3px rgba(0, 0, 0, 0.02)')
                             }}
                             onClick={() => setExpandedCategory(isExpanded ? null : cat.name)}
                           >
                             <div className="categories-header-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {isExpanded ? <ChevronDown size={14} color={catColor} /> : (lang === 'ar' ? <ChevronLeft size={14} color="#64748B" /> : <ChevronRight size={14} color="#64748B" />)}
-                              <span style={{ fontSize: '12.5px', fontWeight: 600, color: isExpanded ? catColor : '#334155' }}>
+                              {isExpanded ? (
+                                <ChevronDown size={14} color={theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor} />
+                              ) : (
+                                lang === 'ar' ? <ChevronLeft size={14} color={theme === 'dark' ? '#94A3B8' : '#64748B'} /> : <ChevronRight size={14} color={theme === 'dark' ? '#94A3B8' : '#64748B'} />
+                              )}
+                              <span style={{ fontSize: '12.5px', fontWeight: 600, color: isExpanded ? (theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor) : (theme === 'dark' ? '#F1F5F9' : '#334155') }}>
                                 {t.getCatName(cat.name)}
                               </span>
                             </div>
@@ -4573,13 +4666,13 @@ function App() {
                                 className="categories-badge"
                                 style={{
                                   fontSize: '11px',
-                                  background: someSubSelected ? catColor : `${catColor}18`,
-                                  color: someSubSelected ? '#FFFFFF' : catColor,
+                                  background: someSubSelected ? catColor : (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : `${catColor}18`),
+                                  color: someSubSelected ? '#FFFFFF' : (theme === 'dark' ? '#E2E8F0' : catColor),
                                   padding: '2px 8px',
                                   borderRadius: '10px',
                                   fontWeight: 700,
                                   cursor: 'pointer',
-                                  border: `1px solid ${catColor}30`
+                                  border: someSubSelected ? `1px solid ${catColor}` : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : `1px solid ${catColor}30`)
                                 }}
                                 onClick={() => handleParentCategoryToggle(cat)}
                                 title={`Toggle all ${cat.name} subcategories`}
@@ -4590,7 +4683,7 @@ function App() {
                           </div>
 
                           {isExpanded && (
-                            <div className="categories-subcategories-list" style={{ display: 'flex', flexDirection: 'column', gap: '3px', paddingLeft: lang === 'ar' ? '0' : '8px', paddingRight: lang === 'ar' ? '8px' : '0', marginTop: '3px', marginBottom: '4px' }}>
+                            <div className="categories-subcategories-list" style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: lang === 'ar' ? '0' : '4px', paddingRight: lang === 'ar' ? '4px' : '0', marginTop: '2px', marginBottom: '3px', background: 'transparent', border: 'none', padding: '2px 0' }}>
                               {cat.subcategories.map(subcat => {
                                 const isSubSelected = !!selectedSubcategories[subcat];
                                 return (
@@ -4604,9 +4697,9 @@ function App() {
                                       padding: '6px 10px',
                                       borderRadius: '6px',
                                       fontSize: '12px',
-                                      color: isSubSelected ? '#004B87' : '#334155',
-                                      background: isSubSelected ? 'rgba(0, 75, 135, 0.08)' : 'rgba(255, 255, 255, 0.5)',
-                                      border: isSubSelected ? '1px solid rgba(0, 75, 135, 0.35)' : '1px solid rgba(226, 232, 240, 0.6)',
+                                      color: isSubSelected ? (theme === 'dark' ? '#38BDF8' : '#004B87') : (theme === 'dark' ? '#E2E8F0' : '#334155'),
+                                      background: isSubSelected ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(0, 75, 135, 0.08)') : 'transparent',
+                                      border: isSubSelected ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid rgba(0, 75, 135, 0.35)') : '1px solid transparent',
                                       fontWeight: isSubSelected ? 600 : 450,
                                       cursor: 'pointer',
                                       transition: 'all 0.15s ease'
@@ -4623,8 +4716,8 @@ function App() {
                                           width: '16px',
                                           height: '16px',
                                           borderRadius: '4px',
-                                          border: isSubSelected ? '1.5px solid #004B87' : '1.5px solid #94A3B8',
-                                          background: isSubSelected ? '#004B87' : '#FFFFFF',
+                                          border: isSubSelected ? (theme === 'dark' ? '1.5px solid #38BDF8' : '1.5px solid #004B87') : (theme === 'dark' ? '1.5px solid rgba(255, 255, 255, 0.40)' : '1.5px solid #94A3B8'),
+                                          background: isSubSelected ? (theme === 'dark' ? '#0284C7' : '#004B87') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
@@ -4638,7 +4731,7 @@ function App() {
                                           </svg>
                                         )}
                                       </div>
-                                      <span className="categories-subcat-text" style={{ color: isSubSelected ? '#002B5B' : '#334155', fontWeight: isSubSelected ? 600 : 450 }}>
+                                      <span className="categories-subcat-text" style={{ color: isSubSelected ? (theme === 'dark' ? '#38BDF8' : '#002B5B') : (theme === 'dark' ? '#E2E8F0' : '#334155'), fontWeight: isSubSelected ? 600 : 450 }}>
                                         {t.getSubcatName(subcat)}
                                       </span>
                                     </div>
@@ -4965,31 +5058,6 @@ function App() {
           {/* MAIN MAP WORKSPACE (OCCUPIES REMAINING AREA NEXT TO RESIZABLE AI PANEL) */}
           <div className="map-workspace-area">
 
-          {/* TOP-RIGHT FLOATING CONTROLS: ABU DHABI LOCATION BADGE */}
-          <div
-            className="map-controls-top-right"
-            style={{
-              position: 'absolute',
-              top: '76px',
-              right: lang === 'ar' ? 'auto' : '16px',
-              left: lang === 'ar' ? '16px' : 'auto',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}
-          >
-            <button
-              className="map-location-badge"
-              onClick={() => {
-                if (mapInstanceRef.current) mapInstanceRef.current.setView([24.4539, 54.3773], 12, { animate: true });
-                showToast(lang === 'ar' ? "تم التمركز على أبوظبي" : "Centered on Abu Dhabi");
-              }}
-            >
-              <GeoVisionGradientIcon src={locationSvg} size={12} alt="Location" />
-              <span>{lang === 'ar' ? 'أبوظبي' : 'Abu Dhabi'}</span>
-            </button>
-          </div>
 
           {/* FLOATING BOTTOM BAR: MAP TOOLS TOGGLE, ZOOM CONTROLS, PRINT, HOME, COORDINATES & GRAPHIC SCALE BAR */}
           <div
@@ -5087,23 +5155,32 @@ function App() {
 
                   {/* 5. Locate */}
                   <button
-                    className="map-tool-dock-btn"
-                    title={lang === 'ar' ? 'موقعي' : 'My Location'}
-                    onClick={() => {
-                      if (mapInstanceRef.current) mapInstanceRef.current.flyTo([24.4539, 54.3773], 15);
-                      showToast(lang === 'ar' ? 'تم التمركز على موقعي (أبوظبي)' : 'Centered to My Location (Abu Dhabi)');
-                    }}
+                    className={`map-tool-dock-btn ${isLocating ? 'active is-locating-pulse' : ''}`}
+                    title={lang === 'ar' ? 'موقعي الجغرافي' : 'My Location'}
+                    onClick={() => handleLocateUser()}
+                    aria-label="Locate User"
                   >
-                    <GeoVisionGradientIcon src={navigationSvg} size={16} alt="Locate" />
+                    <GeoVisionGradientIcon
+                      src={navigationSvg}
+                      size={16}
+                      alt="Locate"
+                      className={isLocating ? 'geovision-locate-spin' : ''}
+                    />
                   </button>
 
                   {/* 6. Compass */}
                   <button
-                    className="map-tool-dock-btn"
-                    title={lang === 'ar' ? 'البوصلة / توجيه للشمال' : 'Compass / Orient North'}
-                    onClick={() => showToast(lang === 'ar' ? 'تم توجيه الخريطة نحو الشمال' : 'Map Oriented North')}
+                    className={`map-tool-dock-btn ${isOrientingCompass ? 'active' : ''}`}
+                    title={lang === 'ar' ? 'البوصلة / توجيه للشمال (0°)' : 'Compass / Orient North (0°)'}
+                    onClick={handleOrientNorth}
+                    aria-label="Compass Orient North"
                   >
-                    <GeoVisionGradientIcon src={compassSvg} size={16} alt="Compass" />
+                    <GeoVisionGradientIcon
+                      src={compassSvg}
+                      size={16}
+                      alt="Compass"
+                      className={isOrientingCompass ? 'geovision-compass-spin' : ''}
+                    />
                   </button>
                 </div>
               )}
@@ -5340,7 +5417,7 @@ function App() {
               }}
             >
               <div className="popover-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#002B5B', margin: 0 }}>{lang === 'ar' ? 'القياس والرسم' : 'Measurement & Draw'}</h3>
+                <h3 style={{ fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#002B5B', margin: 0 }}>{lang === 'ar' ? 'القياس والرسم' : 'Measurement & Draw'}</h3>
                 <button
                   type="button"
                   className="popover-close-btn"
@@ -5359,7 +5436,7 @@ function App() {
                     showToast(lang === 'ar' ? "أداة الدائرة: انقر على المركز ثم انقر على الحافة" : "Circle Tool: Click center, then click outer edge");
                   }}
                 >
-                  <Circle size={15} color="#004B87" />
+                  <Circle size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
                   <span>{lang === 'ar' ? 'دائرة' : 'Circle'}</span>
                 </button>
                 <button
@@ -5370,7 +5447,7 @@ function App() {
                     showToast(lang === 'ar' ? "أداة المستطيل: انقر على زاويتين متقابلتين" : "Rectangle Tool: Click two opposite corners");
                   }}
                 >
-                  <Square size={15} color="#004B87" />
+                  <Square size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
                   <span>{lang === 'ar' ? 'مستطيل' : 'Rectangle'}</span>
                 </button>
                 <button
@@ -5381,7 +5458,7 @@ function App() {
                     showToast(lang === 'ar' ? "أداة المضلع: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Polygon Tool: Click vertices, double-click to finish");
                   }}
                 >
-                  <Pentagon size={15} color="#004B87" />
+                  <Pentagon size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
                   <span>{lang === 'ar' ? 'مضلع' : 'Polygon'}</span>
                 </button>
                 <button
@@ -5392,7 +5469,7 @@ function App() {
                     showToast(lang === 'ar' ? "علامة النقطة: انقر في أي مكان على الخريطة لإسقاط دبوس" : "Point Marker: Click anywhere on map to drop pin");
                   }}
                 >
-                  <MousePointer size={15} color="#004B87" />
+                  <MousePointer size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
                   <span>{lang === 'ar' ? 'نقطة' : 'Click'}</span>
                 </button>
                 <button
@@ -5403,7 +5480,7 @@ function App() {
                     showToast(lang === 'ar' ? "قياس الخط: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Line Measure: Click points, double-click to finish");
                   }}
                 >
-                  <Minus size={15} color="#004B87" style={{ transform: 'rotate(-45deg)' }} />
+                  <Minus size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} style={{ transform: 'rotate(-45deg)' }} />
                   <span>{lang === 'ar' ? 'خط' : 'Line'}</span>
                 </button>
                 <button
@@ -5414,7 +5491,7 @@ function App() {
                     showToast(lang === 'ar' ? "أداة المربع: انقر على زاويتين" : "Square Tool: Click two corners");
                   }}
                 >
-                  <Square size={15} color="#004B87" />
+                  <Square size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
                   <span>{lang === 'ar' ? 'مربع' : 'Square'}</span>
                 </button>
               </div>
@@ -5437,7 +5514,7 @@ function App() {
             >
               <div style={{ padding: '2px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <h4 style={{ fontSize: '12px', fontWeight: '700', color: '#002B5B', margin: 0, letterSpacing: '-0.01em' }}>{lang === 'ar' ? 'مفتاح الخريطة والطبقات' : 'Map Legend & Layers'}</h4>
+                  <h4 style={{ fontSize: '12px', fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#002B5B', margin: 0, letterSpacing: '-0.01em' }}>{lang === 'ar' ? 'مفتاح الخريطة والطبقات' : 'Map Legend & Layers'}</h4>
                   <button
                     type="button"
                     className="popover-close-btn"
@@ -5451,15 +5528,17 @@ function App() {
                   {getDynamicLegendItems().map((item, lIdx) => (
                     <div
                       key={lIdx}
+                      className="legend-popover-item"
                       style={{
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: '8px',
                         fontSize: '11px',
-                        padding: '4px 7px',
+                        padding: '5px 8px',
                         borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.65)',
-                        border: '1px solid rgba(226, 232, 240, 0.8)'
+                        background: theme === 'dark' ? 'rgba(14, 34, 70, 0.55)' : 'rgba(255, 255, 255, 0.65)',
+                        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(226, 232, 240, 0.8)',
+                        transition: 'all 0.2s ease'
                       }}
                     >
                       <span
@@ -5474,8 +5553,8 @@ function App() {
                         }}
                       />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                        <span style={{ fontWeight: 600, color: '#002B5B' }}>{item.title}</span>
-                        {item.detail && <span style={{ fontSize: '10px', color: '#64748B', lineHeight: '1.2' }}>{item.detail}</span>}
+                        <span style={{ fontWeight: 600, color: theme === 'dark' ? '#F1F5F9' : '#002B5B' }}>{item.title}</span>
+                        {item.detail && <span style={{ fontSize: '10px', color: theme === 'dark' ? '#94A3B8' : '#64748B', lineHeight: '1.2' }}>{item.detail}</span>}
                       </div>
                     </div>
                   ))}
@@ -7043,28 +7122,14 @@ function App() {
                                               setSelectedLocation({ ...chip.feature, zoomTrigger: Date.now(), locateTrigger: Date.now() });
                                               setActiveDetailTab('route');
                                             } else if (chip.action === 'request_location') {
-                                              if (typeof navigator !== 'undefined' && navigator.geolocation) {
-                                                navigator.geolocation.getCurrentPosition(
-                                                  (pos) => {
-                                                    const coords = {
-                                                      lat: pos.coords.latitude,
-                                                      lon: pos.coords.longitude,
-                                                      name: 'Current Location',
-                                                      arabicName: 'موقعك الحالي'
-                                                    };
-                                                    setRealUserLocation(coords);
-                                                    setLocationPermissionDenied(false);
-                                                    handleUnifiedSearch({ query: chip.pendingQuery || searchQuery, userLocationOverride: coords, locationPermissionDeniedOverride: false });
-                                                  },
-                                                  (err) => {
-                                                    setLocationPermissionDenied(true);
-                                                    handleUnifiedSearch({ query: chip.pendingQuery || searchQuery, userLocationOverride: null, locationPermissionDeniedOverride: true });
-                                                  },
-                                                  { timeout: 10000, enableHighAccuracy: true }
-                                                );
-                                              } else {
-                                                handleUnifiedSearch({ query: chip.pendingQuery || searchQuery, userLocationOverride: null, locationPermissionDeniedOverride: true });
-                                              }
+                                              handleLocateUser(
+                                                (coords) => {
+                                                  handleUnifiedSearch({ query: chip.pendingQuery || searchQuery, userLocationOverride: coords, locationPermissionDeniedOverride: false });
+                                                },
+                                                (err) => {
+                                                  handleUnifiedSearch({ query: chip.pendingQuery || searchQuery, userLocationOverride: null, locationPermissionDeniedOverride: true });
+                                                }
+                                              );
                                             } else {
                                               handleUnifiedSearch({ query: chip.query || cleanLabel });
                                             }
@@ -7173,6 +7238,16 @@ function App() {
         activeBasemap={activeBasemap}
         legendItems={getDynamicLegendItems()}
         theme={theme}
+      />
+
+      {/* FEEDBACK MODAL */}
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        lang={lang}
+        theme={theme}
+        showToast={showToast}
+        currentUser={currentUser}
       />
 
       <Toast toastMessage={toastMessage} />

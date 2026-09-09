@@ -15,6 +15,7 @@ import {
 import CommonHeader from '../components/CommonHeader.jsx';
 import FourPointStar from '../components/FourPointStar.jsx';
 import aboutHeroBg from '../assets/about_hero_bg.png';
+import aboutHeroBgDark from '../assets/about_hero_bg_dark.png';
 import aboutTeamImg from '../assets/about_team.png';
 import aboutBuildingImg from '../assets/about_building.png';
 import adsdiIconLayers from '../assets/adsdi_icon_layers.png';
@@ -49,6 +50,9 @@ export default function AboutUsPage({
   setAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isFeedbackOpen,
+  setIsFeedbackOpen,
+  currentUser,
   t,
   handleSearchSubmit,
   showToast,
@@ -97,6 +101,9 @@ export default function AboutUsPage({
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isFeedbackOpen={isFeedbackOpen}
+        setIsFeedbackOpen={setIsFeedbackOpen}
+        currentUser={currentUser}
         t={t}
         handleSearchSubmit={handleSearchSubmit}
         showToast={showToast}
@@ -108,7 +115,11 @@ export default function AboutUsPage({
       <section className="about-hero-section">
         {/* Topographic Contour Wave Banner Image */}
         <div className="about-hero-bg-wrapper">
-          <img src={aboutHeroBg} alt="About Us Background" className="about-hero-bg-img" />
+          <img 
+            src={theme === 'dark' ? aboutHeroBgDark : aboutHeroBg} 
+            alt="About Us Background" 
+            className="about-hero-bg-img" 
+          />
         </div>
         
         <div className="about-hero-content">
@@ -122,8 +133,8 @@ export default function AboutUsPage({
 
           <p className="about-hero-desc">
             {lang === 'ar'
-              ? 'تتيح البنية التحتية للبيانات المكانية لإمارة أبوظبي (AD SDI) المشاركة الآمنة وتكامل واستخدام البيانات الجيومكانية لدعم اتخاذ القرارات المستنيرة والتحول الرقمي والخدمات العامة المبتكرة.'
-              : 'Abu Dhabi Spatial Data Infrastructure (AD SDI) enables the secure sharing, integration, and use of geospatial data to support informed decision-making, digital transformation, and innovative public services.'}
+              ? 'تتيح البنية التحتية للبيانات المكانية لإمارة أبوظبي (AD-SDI) المشاركة الآمنة وتكامل واستخدام البيانات الجيومكانية لدعم اتخاذ القرارات المستنيرة والتحول الرقمي والخدمات العامة المبتكرة.'
+              : 'Abu Dhabi Spatial Data Infrastructure (AD-SDI) enables the secure sharing, integration, and use of geospatial data to support informed decision-making, digital transformation, and innovative public services.'}
           </p>
         </div>
       </section>
@@ -221,7 +232,7 @@ export default function AboutUsPage({
               <p className="about-section-desc">
                 {lang === 'ar'
                   ? 'تتيح البنية التحتية للبيانات المكانية لإمارة أبوظبي (AD-SDI)، بإدارة دائرة التمكين الحكومي (DGE)، المشاركة الآمنة وتكامل البيانات الجيومكانية عبر الإمارة. ومن خلالها، توفر معلومات مكانية دقيقة لدعم التعاون، واتخاذ قرارات مستنيرة، والخدمات الحكومية الرقمية الذكية.'
-                  : 'Abu Dhabi Spatial Data Infrastructure (AD-SDI), managed by the Department of Government Enablement (DGE), enables the secure sharing and integration of geospatial data across Abu Dhabi. Through AD SDI, it provides accurate, timely spatial information to support collaboration, informed decision-making, and smart digital government services.'}
+                  : 'Abu Dhabi Spatial Data Infrastructure (AD-SDI), managed by the Department of Government Enablement (DGE), enables the secure sharing and integration of geospatial data across Abu Dhabi. Through AD-SDI, it provides accurate, timely spatial information to support collaboration, informed decision-making, and smart digital government services.'}
               </p>
             </div>
 
