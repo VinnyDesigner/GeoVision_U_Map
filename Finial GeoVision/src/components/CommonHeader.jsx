@@ -21,6 +21,7 @@ import lightThemeSvg from '../assets/Icons 1/Icons/Light theme.svg';
 import darkThemeSvg from '../assets/Icons 1/Icons/Dark theme.svg';
 import profileSvg from '../assets/Icons 1/Icons/profile.svg';
 import collectionsSvg from '../assets/Icons 1/Icons/My Collections.svg';
+import helpSvg from '../assets/Icons 1/Icons/help.svg';
 
 export default function CommonHeader({
   activeBasemap,
@@ -50,7 +51,10 @@ export default function CommonHeader({
   handleSearchSubmit,
   showToast,
   setIsSidebarOpen,
-  setActiveTab
+  setActiveTab,
+  setAiPanelSubView,
+  setIsAISearchBarOpen,
+  setIsAiMinimized
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const profileBtnRef = useRef(null);
@@ -163,6 +167,16 @@ export default function CommonHeader({
         <button className="landing-icon-control" onClick={handleToggleTheme} title={lang === 'ar' ? 'تبديل المظهر' : 'Toggle Theme'}>
           <GeoVisionGradientIcon src={theme === 'dark' ? lightThemeSvg : darkThemeSvg} size={16} alt="Theme" />
         </button>
+
+        <button 
+          className="landing-icon-control" 
+          onClick={() => {
+            if (showToast) showToast(lang === 'ar' ? 'وثائق المساعدة والدعم' : "Help & Support documentation");
+          }} 
+          title={t.help || 'Help & Support'}
+        >
+          <GeoVisionGradientIcon src={helpSvg} size={16} alt="Help & Support" />
+        </button>
         
         <div className="profile-menu-wrapper" ref={profileMenuRef}>
           <button 
@@ -176,36 +190,6 @@ export default function CommonHeader({
 
           {isProfileOpen && (
             <div className="profile-dropdown">
-
-              {isLoggedIn && (
-                <button 
-                  className="profile-item" 
-                  onClick={() => { 
-                    setIsProfileOpen(false); 
-                    setShowMap(true);
-                    if (setIsSidebarOpen) setIsSidebarOpen(true);
-                    if (setActiveTab) setActiveTab('collections');
-                    showToast(lang === 'ar' ? 'تم فتح المفضلة' : "Favorites Opened"); 
-                  }}
-                >
-                  <Heart size={16} style={{ color: theme === 'dark' ? '#ffffff' : '#022E5B', flexShrink: 0 }} />
-                  <span>{t.favorites || t.collections}</span>
-                </button>
-              )}
-              <button 
-                className="profile-item" 
-                onClick={() => { 
-                  setIsProfileOpen(false); 
-                  if (setIsFeedbackOpen) setIsFeedbackOpen(true);
-                }}
-              >
-                <img src={feedbackIcon} alt="Feedback" className="profile-item-icon" />
-                <span>{t.shareFeedback}</span>
-              </button>
-              <button className="profile-item" onClick={() => { setIsProfileOpen(false); showToast(lang === 'ar' ? 'وثائق المساعدة والدعم' : "Help & Support documentation"); }}>
-                <img src={helpIcon} alt="Help" className="profile-item-icon" />
-                <span>{t.help}</span>
-              </button>
               <button 
                 className="profile-item profile-item--signin" 
                 onClick={handleSignOutClick}
@@ -316,8 +300,9 @@ export default function CommonHeader({
                   onClick={() => { 
                     setIsMobileMenuOpen(false); 
                     setShowMap(true); 
-                    if (setIsSidebarOpen) setIsSidebarOpen(true);
-                    if (setActiveTab) setActiveTab('collections');
+                    if (setAiPanelSubView) setAiPanelSubView('favorites');
+                    if (setIsAISearchBarOpen) setIsAISearchBarOpen(true);
+                    if (setIsAiMinimized) setIsAiMinimized(false);
                     showToast(lang === 'ar' ? 'تم فتح المفضلة' : "Favorites Opened"); 
                   }}
                 >

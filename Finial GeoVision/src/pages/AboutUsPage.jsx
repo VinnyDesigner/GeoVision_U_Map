@@ -57,7 +57,10 @@ export default function AboutUsPage({
   handleSearchSubmit,
   showToast,
   setIsSidebarOpen,
-  setActiveTab
+  setActiveTab,
+  setAiPanelSubView,
+  setIsAISearchBarOpen,
+  setIsAiMinimized
 }) {
   const containerRef = useRef(null);
 
@@ -109,6 +112,9 @@ export default function AboutUsPage({
         showToast={showToast}
         setIsSidebarOpen={setIsSidebarOpen}
         setActiveTab={setActiveTab}
+        setAiPanelSubView={setAiPanelSubView}
+        setIsAISearchBarOpen={setIsAISearchBarOpen}
+        setIsAiMinimized={setIsAiMinimized}
       />
 
       {/* ── 1. HERO SECTION (With Topographic Wave Background) ── */}

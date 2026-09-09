@@ -74,7 +74,9 @@ export const getTranslations = (lang = 'en') => ({
   updateAndSearch: lang === 'ar' ? 'تحديث وبحث' : 'Update & Search',
   saveQuery: lang === 'ar' ? 'تثبيت الاستعلام' : 'Pin Query',
   rename: lang === 'ar' ? 'إعادة تسمية' : 'Rename',
+  renameQuery: lang === 'ar' ? 'إعادة تسمية' : 'Rename',
   delete: lang === 'ar' ? 'حذف' : 'Delete',
+  deleteQuery: lang === 'ar' ? 'حذف' : 'Delete',
   addToFavorites: lang === 'ar' ? 'إضافة إلى المفضلة' : 'Add to Favorites',
   removeFromFavorites: lang === 'ar' ? 'إزالة من المفضلة' : 'Remove from Favorites',
 
@@ -107,6 +109,8 @@ export const getTranslations = (lang = 'en') => ({
   train: lang === 'ar' ? 'قطار' : 'Train',
   startNavigation: lang === 'ar' ? 'بدء الملاحة' : 'Start Navigation',
   exitNavigation: lang === 'ar' ? 'إنهاء الملاحة' : 'Exit Navigation',
+  googleNavigation: lang === 'ar' ? 'ملاحة Google Maps' : 'Google Navigation',
+  openInGoogleMaps: lang === 'ar' ? 'فتح في خرائط Google' : 'Directions in Google Maps',
   navigatingTo: lang === 'ar' ? 'جاري الملاحة نحو' : 'Navigating to',
   nextManeuver: lang === 'ar' ? 'المنعطف التالي' : 'Next Turn',
   step: lang === 'ar' ? 'الخطوة' : 'Step',
@@ -152,6 +156,13 @@ export const getTranslations = (lang = 'en') => ({
     if (count === 2) return 'نتيجتان';
     if (count >= 3 && count <= 10) return `${count} نتائج`;
     return `${count} نتيجة`;
+  },
+  placesMatch: (count) => {
+    if (lang !== 'ar') return `${count} ${count === 1 ? 'place match' : 'places match'}`;
+    if (count === 1) return 'مكان مطابق';
+    if (count === 2) return 'مكانان متطابقان';
+    if (count >= 3 && count <= 10) return `${count} أماكن متطابقة`;
+    return `${count} مكاناً مطابقاً`;
   },
   timeAgo: (timeStr) => {
     if (lang !== 'ar' || !timeStr) return timeStr || 'Just now';

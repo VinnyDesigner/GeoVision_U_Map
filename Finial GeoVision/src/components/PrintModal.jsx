@@ -22,7 +22,7 @@ export default function PrintModal({
   // 1. Print Configuration State
   const [pageSize, setPageSize] = useState(config.pageSize || 'A4'); // 'A4' | 'A3'
   const [orientation, setOrientation] = useState(config.orientation || 'landscape'); // 'landscape' | 'portrait'
-  const [contentMode, setContentMode] = useState(config.content || (activeAnalytics ? 'analytics' : (selectedLocation ? 'details' : (activeSearchResults.length > 0 ? 'results' : 'map')))); // 'map' | 'legend' | 'results' | 'details' | 'analytics'
+  const [contentMode, setContentMode] = useState(config.content || (activeAnalytics && activeSearchResults.length > 0 ? 'results_analytics' : (activeAnalytics ? 'analytics' : (selectedLocation ? 'details' : (activeSearchResults.length > 0 ? 'results' : 'map'))))); // 'map' | 'legend' | 'results' | 'details' | 'analytics' | 'results_analytics'
   const [extentMode, setExtentMode] = useState(config.extent || 'current'); // 'current' | 'feature' | 'results'
   
   // Optional GIS Elements
@@ -34,7 +34,7 @@ export default function PrintModal({
   // Helper function to generate contextual dynamic title
   const getContextualTitle = () => {
     if (config.title) return config.title;
-    if (contentMode === 'analytics' && activeAnalytics) {
+    if ((contentMode === 'analytics' || contentMode === 'results_analytics') && activeAnalytics) {
       return activeAnalytics.title || (lang === 'ar' ? 'التحليلات المكانية والإحصائية' : 'Spatial Analytics & Chart Report');
     }
     if ((contentMode === 'details' || (!config.content && selectedLocation)) && selectedLocation) {
@@ -69,6 +69,8 @@ export default function PrintModal({
       if (config.orientation) setOrientation(config.orientation);
       if (config.content) {
         setContentMode(config.content);
+      } else if (activeAnalytics && activeSearchResults.length > 0) {
+        setContentMode('results_analytics');
       } else if (activeAnalytics) {
         setContentMode('analytics');
       } else if (selectedLocation) {
@@ -88,7 +90,7 @@ export default function PrintModal({
       // Dynamic Title Generation from application context
       if (config.title) {
         setCustomTitle(config.title);
-      } else if ((config.content === 'analytics' || (!config.content && activeAnalytics)) && activeAnalytics?.title) {
+      } else if ((config.content === 'analytics' || config.content === 'results_analytics' || (!config.content && activeAnalytics)) && activeAnalytics?.title) {
         setCustomTitle(activeAnalytics.title);
       } else if (config.content === 'details' && selectedLocation) {
         setCustomTitle(lang === 'ar' ? `المعلم المحدد — ${selectedLocation.arabicTitle || selectedLocation.title}` : `Selected Feature — ${selectedLocation.title}`);
@@ -337,23 +339,29 @@ export default function PrintModal({
                     onChange={(e) => setContentMode(e.target.value)}
                   >
                     <option value="map">{lang === 'ar' ? 'الخريطة الحالية فقط' : 'Current Map Only'}</option>
-                    <option value="legend">{lang === 'ar' ? 'الخريطة + مفتاح الطبقات (Legend)' : 'Current Map + Dynamic Legend'}</option>
+                    <option value="results">
+                      {lang === 'ar'
+                        ? (activeSearchResults.length > 0 ? `الخريطة الحالية + نتائج البحث (${activeSearchResults.length} معلم)` : 'الخريطة الحالية + نتائج البحث')
+                        : (activeSearchResults.length > 0 ? `Current Map + Search Results (${activeSearchResults.length} items)` : 'Current Map + Search Results')}
+                    </option>
                     {activeAnalytics && (
                       <option value="analytics">
-                        {lang === 'ar' ? `الخريطة + التحليلات الإحصائية (${activeAnalytics.title || 'التحليلات'})` : `Current Map + Analytics (${activeAnalytics.title || 'Analytics'})`}
+                        {lang === 'ar'
+                          ? (activeAnalytics.title ? `الخريطة الحالية + التحليلات (${activeAnalytics.title})` : 'الخريطة الحالية + التحليلات')
+                          : (activeAnalytics.title ? `Current Map + Analytics (${activeAnalytics.title})` : 'Current Map + Analytics')}
                       </option>
                     )}
-                    <option value="results">
-                      {lang === 'ar' ? `الخريطة + جدول نتائج البحث (${activeSearchResults.length} معلم)` : `Current Map + Search Results Table (${activeSearchResults.length} items)`}
-                    </option>
-                    {activeAnalytics && activeSearchResults.length > 0 && (
+                    {activeAnalytics && (
                       <option value="results_analytics">
-                        {lang === 'ar' ? `الخريطة + التحليلات + نتائج البحث (${activeSearchResults.length} معلم)` : `Current Map + Analytics + Results Table (${activeSearchResults.length} items)`}
+                        {lang === 'ar'
+                          ? (activeSearchResults.length > 0 ? `الخريطة الحالية + نتائج البحث + التحليلات (${activeSearchResults.length} معلم)` : 'الخريطة الحالية + نتائج البحث + التحليلات')
+                          : (activeSearchResults.length > 0 ? `Current Map + Search Results + Analytics (${activeSearchResults.length} items)` : 'Current Map + Search Results + Analytics')}
                       </option>
                     )}
+                    <option value="legend">{lang === 'ar' ? 'الخريطة الحالية + مفتاح الطبقات (Legend)' : 'Current Map + Dynamic Legend'}</option>
                     {selectedLocation && (
                       <option value="details">
-                        {lang === 'ar' ? `الخريطة + تفاصيل المعلم (${selectedLocation.arabicTitle || selectedLocation.title})` : `Current Map + Selected Feature (${selectedLocation.title})`}
+                        {lang === 'ar' ? `الخريطة الحالية + تفاصيل المعلم (${selectedLocation.arabicTitle || selectedLocation.title})` : `Current Map + Selected Feature (${selectedLocation.title})`}
                       </option>
                     )}
                   </select>
@@ -593,7 +601,7 @@ export default function PrintModal({
                         <span>{lang === 'ar' ? 'التقييم / المسافة' : 'Rating / Distance'}</span>
                       </div>
                       <div className="print-table-rows">
-                        {activeSearchResults.slice(0, 8).map((res, idx) => (
+                        {activeSearchResults.slice(0, contentMode === 'results_analytics' ? 4 : 8).map((res, idx) => (
                           <div key={res.id || idx} className="print-table-row">
                             <span className="row-num">{idx + 1}</span>
                             <span className="row-title"><strong>{res.title}</strong></span>
@@ -612,12 +620,12 @@ export default function PrintModal({
                   {(contentMode === 'analytics' || contentMode === 'results_analytics') && activeAnalytics && (
                     <div className="print-sheet-analytics-card" style={{
                       background: '#FFFFFF',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
                       border: '1px solid rgba(0, 75, 135, 0.15)',
-                      marginTop: '8px'
+                      marginTop: '6px'
                     }}>
-                      <GeoVisionAnalyticsChart analytics={activeAnalytics} lang={lang} />
+                      <GeoVisionAnalyticsChart analytics={activeAnalytics} lang={lang} theme="light" />
                     </div>
                   )}
 

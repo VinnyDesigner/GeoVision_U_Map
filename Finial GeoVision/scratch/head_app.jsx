@@ -52,7 +52,6 @@ import {
   Grid,
   List,
   Edit,
-  Edit2,
   Target,
   ChevronDown,
   ChevronUp,
@@ -86,12 +85,11 @@ import {
   CornerUpLeft,
   RotateCw,
   Flag,
-  Maximize2,
-  ExternalLink
+  Maximize2
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { authService } from './services/authService.js';
-import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm, getDrawnAreaLabel } from './services/spatialSearchService.js';
+import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm } from './services/spatialSearchService.js';
 import { calculateRoadRoute, getStartNavigationUrl, TRAVEL_MODES } from './services/routingService.js';
 import PrintModal from './components/PrintModal.jsx';
 import GeoVisionAnalyticsChart from './components/GeoVisionAnalyticsChart.jsx';
@@ -133,7 +131,6 @@ import CommonHeader from './components/CommonHeader.jsx';
 import Toast from './components/Toast.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import FeedbackModal from './components/FeedbackModal.jsx';
-import FloatingFeedbackButton from './components/FloatingFeedbackButton.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AboutUsPage from './pages/AboutUsPage.jsx';
 
@@ -201,7 +198,6 @@ function App() {
   const [activeDetailTab, setActiveDetailTab] = useState('overview');
   const [isDetailsMinimized, setIsDetailsMinimized] = useState(false);
   const [lastDrawnQuery, setLastDrawnQuery] = useState(null);
-  const [searchBoxDrawnAttachment, setSearchBoxDrawnAttachment] = useState(null);
 
   // In-App Road Route & Multi-Modal Navigation States
   const [activeRoute, setActiveRoute] = useState(null);
@@ -405,7 +401,6 @@ function App() {
   // AI Assistant Search state ('button' | 'panel')
   const [aiState, setAiState] = useState('panel');
   const [isAiClosing, setIsAiClosing] = useState(false);
-  const [aiPanelSubView, setAiPanelSubView] = useState('chat'); // 'chat' | 'favorites'
   const [isAiMinimized, setIsAiMinimized] = useState(false);
   const isAISearchBarOpen = aiState === 'panel';
 
@@ -516,7 +511,6 @@ function App() {
   }, [isDraggingLeftResize, leftHistoryWidth, lang]);
 
   const handleCloseAiPanel = () => {
-    setAiPanelSubView('chat');
     setIsAiClosing(true);
     setTimeout(() => {
       setAiState('button');
@@ -534,7 +528,7 @@ function App() {
   };
 
   const getChipIcon = (chip) => {
-    const chipIconColor = 'currentColor';
+    const chipIconColor = theme === 'dark' ? '#ffffff' : '#004B87';
     if (chip.action === 'save_search' || chip.action === 'add_favorite') {
       return <Bookmark size={13} color={chipIconColor} strokeWidth={1.8} style={{ flexShrink: 0 }} />;
     }
@@ -1276,7 +1270,6 @@ function App() {
   }, [isContextPopoverOpen]);
 
   const handleNewChat = () => {
-    setAiPanelSubView('chat');
     spatialAIEngineInstance.resetContext();
     setActiveContextBadges([]);
     setIsContextPopoverOpen(false);
@@ -1490,7 +1483,6 @@ function App() {
 
   const handleDrawnAreaSpatialQuery = (drawData) => {
     setLastDrawnQuery(drawData);
-    setSearchBoxDrawnAttachment(drawData);
     setSelectedLocation(null);
 
     // Capture active subcategories / categories
@@ -1518,7 +1510,7 @@ function App() {
     const searchId = Date.now() + Math.random();
     setChatMessages(prev => [
       ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
-      { sender: 'user', text: queryResult.userQueryText, drawnArea: drawData },
+      { sender: 'user', text: queryResult.userQueryText },
       { sender: 'ai', isSearching: true, id: searchId }
     ]);
 
@@ -1565,7 +1557,6 @@ function App() {
 
   const handleClearDrawnArea = () => {
     setLastDrawnQuery(null);
-    setSearchBoxDrawnAttachment(null);
     setRestoredDrawnGeometry(null);
     setActiveSearchResults([]);
     setActiveSearchFilterTag(null);
@@ -1574,7 +1565,6 @@ function App() {
   };
 
   const handleRunHistoryQuery = (item) => {
-    setAiPanelSubView('chat');
     if (!item) return;
     setActiveHistoryMenuId(null);
     setActiveHistoryId(item.id);
@@ -1688,7 +1678,6 @@ function App() {
   };
 
   const handleRestoreSavedQuery = (item) => {
-    setAiPanelSubView('chat');
     if (!item) return;
     const { queryState, title, category } = item;
     setActiveQueryMenuId(null);
@@ -1888,27 +1877,19 @@ function App() {
   };
 
   const handleSelectFavoritePlace = (item) => {
-    const lat = parseFloat(item.lat ?? (Array.isArray(item.coords) ? item.coords[0] : 24.4539));
-    const lon = parseFloat(item.lon ?? (Array.isArray(item.coords) ? item.coords[1] : 54.3773));
-    
-    const favItem = {
+    if (mapInstanceRef.current && (item.coords || (item.lat && item.lon))) {
+      const targetCoords = item.coords || [item.lat, item.lon];
+      mapInstanceRef.current.flyTo(targetCoords, 15);
+    }
+    setSelectedLocation({
       ...item,
-      id: item.id || `fav-${Date.now()}`,
-      lat: lat,
-      lon: lon,
-      coords: [lat, lon],
+      lat: item.lat || item.coords?.[0],
+      lon: item.lon || item.coords?.[1],
       isFavorite: true,
       zoomTrigger: Date.now(),
       locateTrigger: Date.now()
-    };
-
-    if (mapInstanceRef.current && !isNaN(lat) && !isNaN(lon)) {
-      mapInstanceRef.current.flyTo([lat, lon], 15, { duration: 1.0 });
-    }
-
-    setSelectedLocation(favItem);
-    setActiveSearchResults([favItem]);
-    showToast(lang === 'ar' ? `تم الانتقال إلى ${item.arabicTitle || getArabicTitle(item.title)}` : `Navigated to ${item.title}`);
+    });
+    showToast(`Navigated to ${item.title}`);
   };
 
   const getCategoryIconForHistory = (category = '', size = 11) => {
@@ -2290,16 +2271,9 @@ function App() {
     }
 
     const searchId = Date.now() + Math.random();
-    const activeDrawnArea = searchBoxDrawnAttachment || null;
-    setSearchBoxDrawnAttachment(null);
     setChatMessages(prev => [
       ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
-      {
-        sender: 'user',
-        text: userBubbleText,
-        rawQuery: cleanQuery || cleanCategory || userBubbleText,
-        drawnArea: activeDrawnArea
-      },
+      { sender: 'user', text: userBubbleText, rawQuery: cleanQuery || cleanCategory || userBubbleText },
       { sender: 'ai', isSearching: true, id: searchId }
     ]);
 
@@ -2748,51 +2722,25 @@ function App() {
           </div>
         )}
 
-        {/* Navigation Action Buttons (In-App & Google Maps) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
-          {/* In-App Live Navigation Action Button */}
-          <button
-            type="button"
-            className={`route-start-navigation-btn ${isNavigating ? 'exit-mode' : ''}`}
-            onClick={handleStartNavigation}
-            title={isNavigating ? (lang === 'ar' ? 'إنهاء الملاحة المباشرة' : 'Exit live navigation') : (lang === 'ar' ? 'بدء الملاحة الحية على الخريطة' : 'Start in-app live navigation on map')}
-          >
-            {isNavigating ? (
-              <>
-                <X size={16} strokeWidth={2.4} />
-                <span>{t.exitNavigation || (lang === 'ar' ? 'إنهاء الملاحة' : 'Exit Navigation')}</span>
-              </>
-            ) : (
-              <>
-                <Navigation size={16} strokeWidth={2.4} />
-                <span>{t.startNavigation || (lang === 'ar' ? 'بدء الملاحة' : 'Start Navigation')}</span>
-              </>
-            )}
-          </button>
-
-          {/* Google Navigation Button */}
-          <button
-            type="button"
-            className="route-gmaps-external-btn"
-            onClick={(e) => {
-              if (e) e.stopPropagation();
-              const originCoords = realUserLocation && !isNaN(parseFloat(realUserLocation.lat)) && !isNaN(parseFloat(realUserLocation.lon))
-                ? realUserLocation
-                : (activeRoute && activeRoute.origin && !isNaN(parseFloat(activeRoute.origin.lat)) ? activeRoute.origin : null);
-              
-              const gmapsUrl = getStartNavigationUrl({
-                origin: originCoords,
-                destination: { lat: parseFloat(feature.lat), lon: parseFloat(feature.lon) },
-                mode: travelMode
-              });
-              window.open(gmapsUrl, '_blank', 'noopener,noreferrer');
-            }}
-            title={lang === 'ar' ? 'فتح الاتجاهات والملاحة في خرائط Google' : 'Open directions and navigation in Google Maps'}
-          >
-            <ExternalLink size={15} strokeWidth={2.2} />
-            <span>{t.googleNavigation || (lang === 'ar' ? 'ملاحة Google Maps' : 'Google Navigation')}</span>
-          </button>
-        </div>
+        {/* In-App Live Navigation Action Button */}
+        <button
+          type="button"
+          className={`route-start-navigation-btn ${isNavigating ? 'exit-mode' : ''}`}
+          onClick={handleStartNavigation}
+          title={isNavigating ? (lang === 'ar' ? 'إنهاء الملاحة المباشرة' : 'Exit live navigation') : (lang === 'ar' ? 'بدء الملاحة الحية على الخريطة' : 'Start in-app live navigation on map')}
+        >
+          {isNavigating ? (
+            <>
+              <X size={16} strokeWidth={2.4} />
+              <span>{t.exitNavigation || (lang === 'ar' ? 'إنهاء الملاحة' : 'Exit Navigation')}</span>
+            </>
+          ) : (
+            <>
+              <Navigation size={16} strokeWidth={2.4} />
+              <span>{t.startNavigation || (lang === 'ar' ? 'بدء الملاحة' : 'Start Navigation')}</span>
+            </>
+          )}
+        </button>
       </div>
     );
   };
@@ -3006,15 +2954,6 @@ function App() {
             showToast={showToast}
             setIsSidebarOpen={setIsSidebarOpen}
             setActiveTab={setActiveTab}
-            setAiPanelSubView={setAiPanelSubView}
-            setIsAISearchBarOpen={setIsAISearchBarOpen}
-            setIsAiMinimized={setIsAiMinimized}
-          />
-          <FloatingFeedbackButton
-            onClick={() => setIsFeedbackOpen(true)}
-            lang={lang}
-            theme={theme}
-            isFeedbackOpen={isFeedbackOpen}
           />
           <FeedbackModal
             isOpen={isFeedbackOpen}
@@ -3072,15 +3011,6 @@ function App() {
           toastMessage={toastMessage}
           setIsSidebarOpen={setIsSidebarOpen}
           setActiveTab={setActiveTab}
-          setAiPanelSubView={setAiPanelSubView}
-          setIsAISearchBarOpen={setIsAISearchBarOpen}
-          setIsAiMinimized={setIsAiMinimized}
-        />
-        <FloatingFeedbackButton
-          onClick={() => setIsFeedbackOpen(true)}
-          lang={lang}
-          theme={theme}
-          isFeedbackOpen={isFeedbackOpen}
         />
         <FeedbackModal
           isOpen={isFeedbackOpen}
@@ -3127,9 +3057,6 @@ function App() {
         showToast={showToast}
         setIsSidebarOpen={setIsSidebarOpen}
         setActiveTab={setActiveTab}
-        setAiPanelSubView={setAiPanelSubView}
-        setIsAISearchBarOpen={setIsAISearchBarOpen}
-        setIsAiMinimized={setIsAiMinimized}
       />
 
       {/* GLOBAL SVG CLIP PATH DEFINITIONS ALWAYS MOUNTED FOR VERCEL / WEBKIT COMPATIBILITY */}
@@ -3155,7 +3082,1975 @@ function App() {
       {/* MAIN WORKSPACE */}
       <main className="main-content">
 
-        {/* LEFT SIDEBAR DRAWER COMPLETELY REMOVED - MAP EXTENDS ACROSS FULL VIEWPORT */}
+        {/* SIDEBAR PANEL (TOGGLABLE - DOCKED TO LEFT SIDE IN LTR, RIGHT SIDE IN RTL) */}
+        {isSidebarOpen && (
+          <aside
+            className="map-left-history-panel-wrapper"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: lang === 'ar' ? 'auto' : 0,
+              right: lang === 'ar' ? 0 : 'auto',
+              height: '100%',
+              width: `${leftHistoryWidth}px`,
+              minWidth: '260px',
+              maxWidth: '550px',
+              zIndex: 1001,
+              display: 'flex',
+              flexDirection: 'column',
+              userSelect: isDraggingLeftResize ? 'none' : 'auto',
+              transition: isDraggingLeftResize ? 'none' : 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* DRAGGABLE RESIZE DIVIDER / HANDLE ON INNER EDGE (RIGHT in LTR, LEFT in RTL) */}
+            <div
+              className={`left-panel-resize-handle ${isDraggingLeftResize ? 'dragging' : ''}`}
+              onPointerDown={handleLeftResizePointerDown}
+              title={lang === 'ar' ? 'اسحب لتغيير حجم اللوحة' : 'Drag left/right to resize Search History'}
+              style={{
+                left: lang === 'ar' ? 0 : 'auto',
+                right: lang === 'ar' ? 'auto' : 0
+              }}
+            >
+              <div className="resize-handle-grip" />
+            </div>
+
+            {/* DEDICATED PULSATING WHITE INNER GLOW OVERLAY */}
+            <div className="category-drawer-inner-glow" style={{ borderRadius: 0, clipPath: 'none' }} />
+
+            <div className="map-left-history-panel-container">
+              {/* INDEPENDENT REDUCED OPACITY BACKGROUND IMAGE OVERLAY */}
+              <div className="map-ai-panel-bg-img" style={{ opacity: 0.12 }} />
+
+              {/* TAB 0: SEARCH HISTORY */}
+              {activeTab === 'history' && (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+                  {/* PANEL HEADER WITH TITLE & CLOSE BUTTON */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      minHeight: '36px',
+                      marginBottom: '14px',
+                      position: 'relative',
+                      zIndex: 2
+                    }}
+                  >
+                    <h2
+                      className="search-history-panel-title"
+                      style={{
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                        margin: 0,
+                        padding: 0,
+                        lineHeight: '1.2',
+                        fontFamily: 'Outfit, Inter, sans-serif',
+                        letterSpacing: '-0.01em'
+                      }}
+                    >
+                      {t.history || (lang === 'ar' ? 'السجل' : 'History')}
+                    </h2>
+
+                    <button
+                      className="search-history-toggle-btn"
+                      onClick={() => setIsSidebarOpen(false)}
+                      title={lang === 'ar' ? 'طي اللوحة' : 'Collapse History Panel'}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.75)',
+                        border: '1px solid rgba(255, 255, 255, 0.85)',
+                        borderRadius: '8px',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: '#004B87',
+                        boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <PanelLeftClose size={18} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                    </button>
+                  </div>
+
+                  {/* SEARCH FILTER INPUT BAR */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      marginBottom: '12px',
+                      zIndex: 2
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="search-history-filter-input"
+                      placeholder={t.filterHistoryPlaceholder || (lang === 'ar' ? 'البحث في سجل البحث...' : 'Search')}
+                      value={historyFilterQuery}
+                      onChange={(e) => setHistoryFilterQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        fontSize: '13px',
+                        color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        textAlign: lang === 'ar' ? 'right' : 'left'
+                      }}
+                    />
+                    <Search
+                      size={15}
+                      color="#94A3B8"
+                      style={{
+                        position: 'absolute',
+                        right: lang === 'ar' ? 'auto' : '10px',
+                        left: lang === 'ar' ? '10px' : 'auto',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  </div>
+
+                  {/* RECENT SEARCHES LIST */}
+                  <div
+                    className="search-history-list"
+                    style={{
+                      flex: 1,
+                      minHeight: 0,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      paddingRight: lang === 'ar' ? '0' : '2px',
+                      paddingLeft: lang === 'ar' ? '2px' : '0',
+                      zIndex: 2
+                    }}
+                  >
+                    {!isLoggedIn ? (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '36px 16px',
+                        textAlign: 'center',
+                        gap: '12px',
+                        background: theme === 'dark' ? 'rgba(14, 38, 77, 0.40)' : 'rgba(255, 255, 255, 0.7)',
+                        backdropFilter: theme === 'dark' ? 'blur(12px)' : 'none',
+                        WebkitBackdropFilter: theme === 'dark' ? 'blur(12px)' : 'none',
+                        borderRadius: '12px',
+                        border: theme === 'dark' ? '1px dashed rgba(56, 189, 248, 0.35)' : '1px dashed rgba(29, 104, 242, 0.3)',
+                        margin: '12px 0'
+                      }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          background: theme === 'dark' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(0, 75, 135, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: theme === 'dark' ? '#38bdf8' : '#004B87'
+                        }}>
+                          <User size={20} />
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#002B5B' }}>
+                          {lang === 'ar' ? 'سجل الدخول لعرض السجل' : 'Sign in to access history'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: theme === 'dark' ? '#94A3B8' : '#64748B', maxWidth: '240px', lineHeight: 1.4 }}>
+                          {lang === 'ar'
+                            ? 'احفظ نتائج البحث السابقة واستعد جلسات المحادثة والاستعلامات المكانية.'
+                            : 'Save previous search queries, restore conversation sessions, and access past results.'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSignInOpen(true);
+                            setAuthState('login');
+                          }}
+                          style={{
+                            marginTop: '4px',
+                            padding: '8px 18px',
+                            background: 'linear-gradient(135deg, #004B87 0%, #1D68F2 100%)',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0, 75, 135, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <LogIn size={14} />
+                          <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
+                        </button>
+                      </div>
+                    ) : savedQueries.length === 0 && searchHistory.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                        {lang === 'ar' ? 'لا يوجد سجل بحث حتى الآن' : 'No search history recorded yet.'}
+                      </div>
+                    ) : (
+                      <>
+                        {/* 1. PINNED SECTION (ACCORDION) */}
+                        <div
+                          className="pinned-queries-section"
+                          style={{
+                            flexShrink: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            marginBottom: savedQueries.length > 0 && isPinnedAccordionOpen ? '8px' : '4px',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {/* Accordion Header */}
+                          <div
+                            onClick={() => setIsPinnedAccordionOpen(prev => !prev)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              transition: 'background 0.15s ease',
+                              background: isPinnedAccordionOpen && savedQueries.length > 0
+                                ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.08)' : 'rgba(0, 75, 135, 0.05)')
+                                : 'transparent'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(0, 75, 135, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = isPinnedAccordionOpen && savedQueries.length > 0
+                                ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.08)' : 'rgba(0, 75, 135, 0.05)')
+                                : 'transparent';
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Pin size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} fill={theme === 'dark' ? '#38bdf8' : '#004B87'} />
+                              <span className="history-section-title" style={{ fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#002B5B' }}>
+                                {t.pinned || (lang === 'ar' ? 'المثبتة' : 'Pinned')}
+                              </span>
+                              {savedQueries.length > 0 && (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 600,
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  background: theme === 'dark' ? 'rgba(56, 189, 248, 0.20)' : 'rgba(0, 75, 135, 0.10)',
+                                  color: theme === 'dark' ? '#38bdf8' : '#004B87'
+                                }}>
+                                  {savedQueries.length}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'transform 0.2s ease',
+                              transform: isPinnedAccordionOpen ? 'rotate(0deg)' : (lang === 'ar' ? 'rotate(90deg)' : 'rotate(-90deg)')
+                            }}>
+                              <ChevronDown size={14} color={theme === 'dark' ? 'rgba(255, 255, 255, 0.60)' : '#64748B'} />
+                            </div>
+                          </div>
+
+                          {/* Accordion Body: Only shown when isPinnedAccordionOpen is true AND savedQueries has items */}
+                          {isPinnedAccordionOpen && savedQueries.length > 0 && (
+                            <div
+                              className="pinned-queries-scroll-list"
+                              style={{
+                                maxHeight: '220px',
+                                overflowY: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                marginTop: '6px',
+                                paddingRight: lang === 'ar' ? '0' : '2px',
+                                paddingLeft: lang === 'ar' ? '2px' : '0'
+                              }}
+                            >
+                              {savedQueries
+                                .filter(item =>
+                                  !historyFilterQuery ||
+                                  (item.title && item.title.toLowerCase().includes(historyFilterQuery.toLowerCase())) ||
+                                  (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
+                                )
+                                .map((item) => {
+                                  const iconConfig = getCategoryIconForHistory(item.category || item.title);
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className={`search-history-item ${activeQueryMenuId === item.id ? 'has-active-menu' : ''}`}
+                                      onClick={() => handleRestoreSavedQuery(item)}
+                                      style={{
+                                        position: 'relative',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'flex-start',
+                                        width: '100%',
+                                        boxSizing: 'border-box',
+                                        padding: '10px 12px',
+                                        height: '65px',
+                                        minHeight: '65px',
+                                        maxHeight: '65px',
+                                        borderRadius: '8px',
+                                        background: 'rgba(255, 255, 255, 0.92)',
+                                        border: '1px solid rgba(0, 75, 135, 0.16)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                        boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
+                                        textAlign: lang === 'ar' ? 'right' : 'left'
+                                      }}
+                                    >
+                                      {/* Top Row: Category Icon + Title on left, Action Buttons on right */}
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+                                          <div
+                                            className="history-cat-icon-circle"
+                                            style={{
+                                              width: '22px',
+                                              height: '22px',
+                                              borderRadius: '50%',
+                                              background: iconConfig.bg,
+                                              border: `1px solid ${iconConfig.border || 'transparent'}`,
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              flexShrink: 0
+                                            }}
+                                          >
+                                            {iconConfig.icon}
+                                          </div>
+                                          {renamingQueryId === item.id ? (
+                                            <div
+                                              style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <input
+                                                type="text"
+                                                value={renameQueryText}
+                                                onChange={(e) => setRenameQueryText(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') handleSaveRenameQuery(item.id);
+                                                  if (e.key === 'Escape') setRenamingQueryId(null);
+                                                }}
+                                                autoFocus
+                                                style={{
+                                                  flex: 1,
+                                                  padding: '2px 5px',
+                                                  fontSize: '11.5px',
+                                                  borderRadius: '4px',
+                                                  border: '1px solid #1D68F2',
+                                                  outline: 'none',
+                                                  background: '#FFFFFF',
+                                                  color: '#002B5B',
+                                                  textAlign: lang === 'ar' ? 'right' : 'left'
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSaveRenameQuery(item.id)}
+                                                style={{ padding: '2px 5px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
+                                              >
+                                                <Check size={11} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setRenamingQueryId(null)}
+                                                style={{ padding: '2px 5px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
+                                              >
+                                                <X size={11} />
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div
+                                              style={{
+                                                fontSize: '12px',
+                                                fontWeight: 600,
+                                                color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                lineHeight: '1.25',
+                                                textAlign: lang === 'ar' ? 'right' : 'left'
+                                              }}
+                                              title={lang === 'ar' ? getArabicTitle(item.title) : item.title}
+                                            >
+                                              {lang === 'ar' ? getArabicTitle(item.title) : item.title}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Action Buttons: Quick Unpin + 3-Dot Menu */}
+                                        <div className="history-action-buttons-group" style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            title={lang === 'ar' ? 'إلغاء التثبيت' : 'Unpin query'}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleUnpinQuery(item);
+                                            }}
+                                            className="history-quick-action-btn"
+                                            style={{
+                                              width: '22px',
+                                              height: '22px',
+                                              borderRadius: '6px',
+                                              border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(0, 75, 135, 0.16)',
+                                              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 75, 135, 0.06)',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              cursor: 'pointer',
+                                              color: theme === 'dark' ? '#FFFFFF' : '#004B87',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                          >
+                                            <Pin size={11} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} fill={theme === 'dark' ? '#FFFFFF' : '#004B87'} />
+                                          </button>
+
+                                          <div className="query-menu-container" style={{ position: 'relative' }}>
+                                            <button
+                                              type="button"
+                                              title={lang === 'ar' ? 'خيارات الاستعلام' : 'Query Options'}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (activeQueryMenuId === item.id) {
+                                                  setActiveQueryMenuId(null);
+                                                } else {
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  if (lang === 'ar') {
+                                                    setQueryMenuPos({ top: rect.top - 4, left: Math.max(10, rect.left - 155) });
+                                                  } else {
+                                                    setQueryMenuPos({ top: rect.top - 4, left: rect.right + 10 });
+                                                  }
+                                                  setActiveQueryMenuId(item.id);
+                                                }
+                                              }}
+                                              style={{
+                                                width: '22px',
+                                                height: '22px',
+                                                borderRadius: '6px',
+                                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
+                                                background: activeQueryMenuId === item.id ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(29, 104, 242, 0.08)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: theme === 'dark' ? '#FFFFFF' : '#64748B',
+                                                transition: 'all 0.15s ease'
+                                              }}
+                                            >
+                                              <MoreVertical size={12} />
+                                            </button>
+
+                                            {/* Dropdown Menu (Portal) */}
+                                            {activeQueryMenuId === item.id && createPortal(
+                                              <div
+                                                className="floating-history-dropdown"
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{
+                                                  position: 'fixed',
+                                                  top: `${queryMenuPos.top}px`,
+                                                  left: `${queryMenuPos.left}px`,
+                                                  width: '155px',
+                                                  background: theme === 'dark' ? 'rgba(10, 24, 50, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+                                                  backdropFilter: 'blur(16px)',
+                                                  borderRadius: '8px',
+                                                  border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.95)',
+                                                  boxShadow: theme === 'dark' ? '0 10px 30px rgba(0, 0, 0, 0.60)' : '0 8px 24px rgba(0, 43, 91, 0.16)',
+                                                  zIndex: 999999,
+                                                  padding: '4px',
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  gap: '2px',
+                                                  direction: lang === 'ar' ? 'rtl' : 'ltr'
+                                                }}
+                                              >
+                                                {/* 1. Run Query */}
+                                                <button
+                                                  type="button"
+                                                  className="floating-history-dropdown-item"
+                                                  onClick={() => handleRestoreSavedQuery(item)}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '6px 8px',
+                                                    fontSize: '11.5px',
+                                                    color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    textAlign: lang === 'ar' ? 'right' : 'left',
+                                                    width: '100%',
+                                                    transition: 'background 0.15s ease'
+                                                  }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                                >
+                                                  <Play size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                                                  <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.runQuery}</span>
+                                                </button>
+
+                                                {/* 2. Add/Remove Favorite */}
+                                                <button
+                                                  type="button"
+                                                  className="floating-history-dropdown-item"
+                                                  onClick={() => {
+                                                    handleToggleFavoriteQuery(item.id);
+                                                    setActiveQueryMenuId(null);
+                                                  }}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '6px 8px',
+                                                    fontSize: '11.5px',
+                                                    color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    textAlign: lang === 'ar' ? 'right' : 'left',
+                                                    width: '100%',
+                                                    transition: 'background 0.15s ease'
+                                                  }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                                >
+                                                  <Heart size={13} color={item.isFavorite ? '#EF4444' : (theme === 'dark' ? '#38bdf8' : '#004B87')} fill={item.isFavorite ? '#EF4444' : 'none'} strokeWidth={2} />
+                                                  <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>
+                                                    {item.isFavorite ? (t.removeFromFavorites || 'Remove Favorite') : (t.addToFavorites || 'Add to Favorites')}
+                                                  </span>
+                                                </button>
+
+                                                {/* 3. Rename */}
+                                                <button
+                                                  type="button"
+                                                  className="floating-history-dropdown-item"
+                                                  onClick={() => handleStartRenameQuery(item.id, item.title)}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '6px 8px',
+                                                    fontSize: '11.5px',
+                                                    color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    textAlign: lang === 'ar' ? 'right' : 'left',
+                                                    width: '100%',
+                                                    transition: 'background 0.15s ease'
+                                                  }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                                >
+                                                  <Edit size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} />
+                                                  <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.rename}</span>
+                                                </button>
+
+                                                <div style={{ height: '1px', background: theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : '#E2E8F0', margin: '2px 0' }} />
+
+                                                {/* 4. Delete */}
+                                                <button
+                                                  type="button"
+                                                  className="floating-history-dropdown-item"
+                                                  onClick={() => handleDeleteSavedQuery(item.id)}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '6px 8px',
+                                                    fontSize: '11.5px',
+                                                    color: theme === 'dark' ? '#F87171' : '#EF4444',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    textAlign: lang === 'ar' ? 'right' : 'left',
+                                                    width: '100%',
+                                                    transition: 'background 0.15s ease'
+                                                  }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.20)' : '#FEF2F2')}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                                >
+                                                  <Trash2 size={13} color={theme === 'dark' ? '#F87171' : '#EF4444'} />
+                                                  <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F87171' : '#EF4444' }}>{t.delete || 'Delete'}</span>
+                                                </button>
+                                              </div>,
+                                              document.body
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Bottom Row: Places count + Category chip on left, Time on right */}
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden' }}>
+                                          <span style={{ fontSize: '10.5px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.75)' : '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                            {t.places(item.resultsCount || 0)}
+                                          </span>
+                                          <span
+                                            className="history-category-badge"
+                                            style={{
+                                              fontSize: '9.5px',
+                                              color: iconConfig.color,
+                                              background: iconConfig.badgeBg,
+                                              border: `1px solid ${iconConfig.border || 'transparent'}`,
+                                              padding: '1.5px 6px',
+                                              borderRadius: '4px',
+                                              fontWeight: 600,
+                                              display: 'inline-block',
+                                              whiteSpace: 'nowrap',
+                                              textAlign: lang === 'ar' ? 'right' : 'left'
+                                            }}
+                                          >
+                                            {t.getCatName(item.category || 'General')}
+                                          </span>
+                                          {item.queryState?.spatialType === 'draw' && (
+                                            <span
+                                              style={{
+                                                fontSize: '9px',
+                                                color: '#7C3AED',
+                                                background: 'rgba(124, 58, 237, 0.09)',
+                                                padding: '1px 5px',
+                                                borderRadius: '4px',
+                                                fontWeight: 600,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '2px',
+                                                whiteSpace: 'nowrap'
+                                              }}
+                                            >
+                                              ⬟ {t.drawnArea || 'Drawn Area'}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                          {t.timeAgo(item.timestamp || 'Recent')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. RECENTS SECTION (Remaining Height) */}
+                        <div
+                          className="recents-queries-section"
+                          style={{
+                            flex: 1,
+                            minHeight: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            paddingTop: '2px'
+                          }}
+                        >
+                          {/* Recents Accordion Header */}
+                          <div
+                            onClick={() => setIsRecentAccordionOpen(prev => !prev)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 8px',
+                              marginBottom: isRecentAccordionOpen ? '6px' : '0',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              transition: 'background 0.15s ease',
+                              flexShrink: 0,
+                              background: isRecentAccordionOpen
+                                ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.04)' : 'rgba(0, 75, 135, 0.03)')
+                                : 'transparent'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.10)' : 'rgba(0, 75, 135, 0.06)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = isRecentAccordionOpen
+                                ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.04)' : 'rgba(0, 75, 135, 0.03)')
+                                : 'transparent';
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Clock size={12} color={theme === 'dark' ? '#38bdf8' : '#64748B'} />
+                              <span className="history-section-title" style={{ fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#334155' }}>
+                                {t.recents || (lang === 'ar' ? 'الأخيرة' : 'Recents')}
+                              </span>
+                              {searchHistory.length > 0 && (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 600,
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  background: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.12)',
+                                  color: theme === 'dark' ? '#E2E8F0' : '#475569'
+                                }}>
+                                  {searchHistory.length}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'transform 0.2s ease',
+                              transform: isRecentAccordionOpen ? 'rotate(0deg)' : (lang === 'ar' ? 'rotate(90deg)' : 'rotate(-90deg)')
+                            }}>
+                              <ChevronDown size={14} color={theme === 'dark' ? 'rgba(255, 255, 255, 0.60)' : '#64748B'} />
+                            </div>
+                          </div>
+
+                          {isRecentAccordionOpen && (
+                            <div
+                              className="recents-queries-scroll-list"
+                              style={{
+                                flex: 1,
+                                minHeight: 0,
+                                overflowY: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                paddingRight: lang === 'ar' ? '0' : '2px',
+                                paddingLeft: lang === 'ar' ? '2px' : '0'
+                              }}
+                            >
+                            {searchHistory
+                              .filter(item =>
+                                !historyFilterQuery ||
+                                (item.text && item.text.toLowerCase().includes(historyFilterQuery.toLowerCase())) ||
+                                (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
+                              )
+                              .map((item) => {
+                                const iconConfig = getCategoryIconForHistory(item.category || item.text);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`search-history-item ${activeHistoryMenuId === item.id ? 'has-active-menu' : ''}`}
+                                    onClick={() => handleRunHistoryQuery(item)}
+                                    style={{
+                                      position: 'relative',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'flex-start',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      padding: '10px 12px',
+                                      height: '65px',
+                                      minHeight: '65px',
+                                      maxHeight: '65px',
+                                      borderRadius: '8px',
+                                      background: 'rgba(255, 255, 255, 0.88)',
+                                      border: '1px solid rgba(226, 232, 240, 0.9)',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease',
+                                      boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
+                                      textAlign: lang === 'ar' ? 'right' : 'left'
+                                    }}
+                                  >
+                                    {/* Top Row: Icon + Title + Action Buttons (Quick Pin + 3-dot) */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+                                        <div
+                                          className="history-cat-icon-circle"
+                                          style={{
+                                            width: '22px',
+                                            height: '22px',
+                                            borderRadius: '50%',
+                                            background: iconConfig.bg,
+                                            border: `1px solid ${iconConfig.border || 'transparent'}`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0
+                                          }}
+                                        >
+                                          {iconConfig.icon}
+                                        </div>
+                                        {renamingHistoryId === item.id ? (
+                                          <div
+                                            style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <input
+                                              type="text"
+                                              value={renameHistoryText}
+                                              onChange={(e) => setRenameHistoryText(e.target.value)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveRenameHistory(item.id);
+                                                if (e.key === 'Escape') setRenamingHistoryId(null);
+                                              }}
+                                              autoFocus
+                                              style={{
+                                                flex: 1,
+                                                padding: '2px 5px',
+                                                fontSize: '11.5px',
+                                                borderRadius: '4px',
+                                                border: '1px solid #1D68F2',
+                                                outline: 'none',
+                                                background: '#FFFFFF',
+                                                color: '#002B5B',
+                                                textAlign: lang === 'ar' ? 'right' : 'left'
+                                              }}
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSaveRenameHistory(item.id)}
+                                              style={{ padding: '2px 5px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
+                                            >
+                                              <Check size={11} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setRenamingHistoryId(null)}
+                                              style={{ padding: '2px 5px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
+                                            >
+                                              <X size={11} />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div
+                                            style={{
+                                              fontSize: '12px',
+                                              fontWeight: 600,
+                                              color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                                              whiteSpace: 'nowrap',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              lineHeight: '1.25',
+                                              textAlign: lang === 'ar' ? 'right' : 'left'
+                                            }}
+                                            title={lang === 'ar' ? getArabicTitle(item.text) : item.text}
+                                          >
+                                            {lang === 'ar' ? getArabicTitle(item.text) : item.text}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Action Buttons: Quick Pin + 3-Dot Dropdown */}
+                                      <div className="history-action-buttons-group" style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                          type="button"
+                                          title={lang === 'ar' ? 'تثبيت الاستعلام' : 'Pin query'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePinQuery(item);
+                                          }}
+                                          className="history-quick-action-btn"
+                                          style={{
+                                            width: '22px',
+                                            height: '22px',
+                                            borderRadius: '6px',
+                                            border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
+                                            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            color: theme === 'dark' ? '#FFFFFF' : '#64748B',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          <Pin size={11} color={theme === 'dark' ? '#FFFFFF' : '#64748B'} />
+                                        </button>
+
+                                        <div className="history-menu-container" style={{ position: 'relative' }}>
+                                          <button
+                                            type="button"
+                                            title={lang === 'ar' ? 'خيارات السجل' : 'History Options'}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (activeHistoryMenuId === item.id) {
+                                                setActiveHistoryMenuId(null);
+                                              } else {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                if (lang === 'ar') {
+                                                  setHistoryMenuPos({ top: rect.top - 4, left: Math.max(10, rect.left - 155) });
+                                                } else {
+                                                  setHistoryMenuPos({ top: rect.top - 4, left: rect.right + 10 });
+                                                }
+                                                setActiveHistoryMenuId(item.id);
+                                              }
+                                            }}
+                                            style={{
+                                              width: '22px',
+                                              height: '22px',
+                                              borderRadius: '6px',
+                                              border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
+                                              background: activeHistoryMenuId === item.id ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(29, 104, 242, 0.08)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              cursor: 'pointer',
+                                              color: theme === 'dark' ? '#FFFFFF' : '#64748B',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                          >
+                                            <MoreVertical size={12} />
+                                          </button>
+
+                                          {/* Dropdown Menu Portal */}
+                                          {activeHistoryMenuId === item.id && createPortal(
+                                            <div
+                                              className="floating-history-dropdown"
+                                              onClick={(e) => e.stopPropagation()}
+                                              style={{
+                                                position: 'fixed',
+                                                top: `${historyMenuPos.top}px`,
+                                                left: `${historyMenuPos.left}px`,
+                                                width: '155px',
+                                                background: theme === 'dark' ? 'rgba(10, 24, 50, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+                                                backdropFilter: 'blur(16px)',
+                                                borderRadius: '8px',
+                                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.95)',
+                                                boxShadow: theme === 'dark' ? '0 10px 30px rgba(0, 0, 0, 0.60)' : '0 8px 24px rgba(0, 43, 91, 0.16)',
+                                                zIndex: 999999,
+                                                padding: '4px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '2px',
+                                                direction: lang === 'ar' ? 'rtl' : 'ltr'
+                                              }}
+                                            >
+                                              {/* 1. Run Query */}
+                                              <button
+                                                type="button"
+                                                className="floating-history-dropdown-item"
+                                                onClick={() => handleRunHistoryQuery(item)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  padding: '6px 8px',
+                                                  fontSize: '11.5px',
+                                                  color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  borderRadius: '5px',
+                                                  cursor: 'pointer',
+                                                  textAlign: lang === 'ar' ? 'right' : 'left',
+                                                  width: '100%',
+                                                  transition: 'background 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                              >
+                                                <Play size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                                                <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.runQuery}</span>
+                                              </button>
+
+                                              {/* 2. Pin Query */}
+                                              <button
+                                                type="button"
+                                                className="floating-history-dropdown-item"
+                                                onClick={() => handlePinQuery(item)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  padding: '6px 8px',
+                                                  fontSize: '11.5px',
+                                                  color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  borderRadius: '5px',
+                                                  cursor: 'pointer',
+                                                  textAlign: lang === 'ar' ? 'right' : 'left',
+                                                  width: '100%',
+                                                  transition: 'background 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                              >
+                                                <Pin size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} />
+                                                <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.pinQuery || 'Pin Query'}</span>
+                                              </button>
+
+                                              {/* 3. Rename */}
+                                              <button
+                                                type="button"
+                                                className="floating-history-dropdown-item"
+                                                onClick={() => handleStartRenameHistory(item.id, item.text)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  padding: '6px 8px',
+                                                  fontSize: '11.5px',
+                                                  color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  borderRadius: '5px',
+                                                  cursor: 'pointer',
+                                                  textAlign: lang === 'ar' ? 'right' : 'left',
+                                                  width: '100%',
+                                                  transition: 'background 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                              >
+                                                <Edit size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} />
+                                                <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.rename}</span>
+                                              </button>
+
+                                              <div style={{ height: '1px', background: theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : '#E2E8F0', margin: '2px 0' }} />
+
+                                              {/* 4. Delete */}
+                                              <button
+                                                type="button"
+                                                className="floating-history-dropdown-item"
+                                                onClick={() => handleDeleteHistory(item.id)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  padding: '6px 8px',
+                                                  fontSize: '11.5px',
+                                                  color: theme === 'dark' ? '#F87171' : '#EF4444',
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  borderRadius: '5px',
+                                                  cursor: 'pointer',
+                                                  textAlign: lang === 'ar' ? 'right' : 'left',
+                                                  width: '100%',
+                                                  transition: 'background 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.20)' : '#FEF2F2')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                              >
+                                                <Trash2 size={13} color={theme === 'dark' ? '#F87171' : '#EF4444'} />
+                                                <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F87171' : '#EF4444' }}>{t.delete}</span>
+                                              </button>
+                                            </div>,
+                                            document.body
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Bottom Row: Results count + Category chip on left, Time on right */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '8px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden' }}>
+                                        <span style={{ fontSize: '10.5px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.75)' : '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                          {t.resultsCount(item.resultsCount || 12)}
+                                        </span>
+                                        <span
+                                          className="history-category-badge"
+                                          style={{
+                                            fontSize: '9.5px',
+                                            color: iconConfig.color,
+                                            background: iconConfig.badgeBg,
+                                            border: `1px solid ${iconConfig.border || 'transparent'}`,
+                                            padding: '1.5px 6px',
+                                            borderRadius: '4px',
+                                            fontWeight: 600,
+                                            display: 'inline-block',
+                                            whiteSpace: 'nowrap',
+                                            textAlign: lang === 'ar' ? 'right' : 'left'
+                                          }}
+                                        >
+                                          {t.getCatName(item.category || 'General')}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                        {t.timeAgo(item.timestamp || 'Just now')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  </div>
+                </div>
+              )}
+
+            {/* TAB: FAVORITES */}
+            {activeTab === 'collections' && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+                {/* PANEL HEADER WITH TITLE & COLLAPSE BUTTON */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    minHeight: '36px',
+                    marginBottom: '14px',
+                    position: 'relative',
+                    zIndex: 2
+                  }}
+                >
+                  <h2
+                    className="collections-title"
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                      margin: 0,
+                      padding: 0,
+                      lineHeight: '1.2',
+                      fontFamily: 'Outfit, Inter, sans-serif',
+                      letterSpacing: '-0.01em'
+                    }}
+                  >
+                    {t.favorites || (lang === 'ar' ? 'المفضلة' : 'Favorites')}
+                  </h2>
+
+                  <button
+                    className="search-history-toggle-btn"
+                    onClick={() => setIsSidebarOpen(false)}
+                    title={lang === 'ar' ? 'طي لوحة المفضلة' : 'Collapse Favorites Panel'}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.75)',
+                      border: '1px solid rgba(255, 255, 255, 0.85)',
+                      borderRadius: '8px',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#004B87',
+                      boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <PanelLeftClose size={18} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                  </button>
+                </div>
+
+                {/* SEARCH FILTER INPUT BAR */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    marginBottom: '12px',
+                    zIndex: 2
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="search-history-filter-input"
+                    placeholder={t.filterFavPlaceholder || (lang === 'ar' ? 'البحث في المفضلة...' : 'Search favorites...')}
+                    value={collectionsFilterQuery}
+                    onChange={(e) => setCollectionsFilterQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(226, 232, 240, 0.9)',
+                      background: 'rgba(255, 255, 255, 0.85)',
+                      fontSize: '13px',
+                      color: '#0F172A',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      textAlign: lang === 'ar' ? 'right' : 'left'
+                    }}
+                  />
+                  <Search
+                    size={15}
+                    color="#94A3B8"
+                    style={{
+                      position: 'absolute',
+                      right: lang === 'ar' ? 'auto' : '10px',
+                      left: lang === 'ar' ? '10px' : 'auto',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* FAVORITES LIST */}
+                <div
+                  className="search-history-list"
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    paddingRight: lang === 'ar' ? '0' : '2px',
+                    paddingLeft: lang === 'ar' ? '2px' : '0',
+                    zIndex: 2
+                  }}
+                >
+                  {!isLoggedIn ? (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '36px 16px',
+                      textAlign: 'center',
+                      gap: '12px',
+                      background: 'rgba(255, 255, 255, 0.7)',
+                      borderRadius: '12px',
+                      border: '1px dashed rgba(29, 104, 242, 0.3)',
+                      margin: '12px 0'
+                    }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        background: 'rgba(0, 75, 135, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#004B87'
+                      }}>
+                        <Heart size={20} />
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#002B5B' }}>
+                        {lang === 'ar' ? 'سجل الدخول لعرض المفضلة' : 'Sign in to access your favorites'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B', maxWidth: '240px', lineHeight: 1.4 }}>
+                        {lang === 'ar'
+                          ? 'احفظ المواقع والاستعلامات المفضلة لديك للوصول إليها بسرعة في أي وقت.'
+                          : 'Bookmark your favorite places and queries to access them quickly anytime.'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSignInOpen(true);
+                          setAuthState('login');
+                        }}
+                        style={{
+                          marginTop: '4px',
+                          padding: '8px 18px',
+                          background: 'linear-gradient(135deg, #004B87 0%, #1D68F2 100%)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(0, 75, 135, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <LogIn size={14} />
+                        <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
+                      </button>
+                    </div>
+                  ) : favoritePlaces.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                      {lang === 'ar' ? 'لا توجد أماكن مفضلة محفوظة حتى الآن' : 'No favorite places bookmarked yet.'}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Favorited Locations / Features */}
+                      {favoritePlaces
+                        .filter(item =>
+                          !collectionsFilterQuery ||
+                          item.title.toLowerCase().includes(collectionsFilterQuery.toLowerCase()) ||
+                          (item.category && item.category.toLowerCase().includes(collectionsFilterQuery.toLowerCase())) ||
+                          (item.area && item.area.toLowerCase().includes(collectionsFilterQuery.toLowerCase()))
+                        )
+                        .map((item) => {
+                          const iconConfig = getCategoryIconForHistory(item.category || item.subcategory || item.title);
+                          return (
+                            <div
+                              key={`fav-place-${item.id}`}
+                              className="search-history-item"
+                              onClick={() => handleSelectFavoritePlace(item)}
+                              style={{
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '10px 12px',
+                                height: '65px',
+                                minHeight: '65px',
+                                maxHeight: '65px',
+                                borderRadius: '10px',
+                                background: 'rgba(255, 255, 255, 0.85)',
+                                border: '1px solid rgba(226, 232, 240, 0.85)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
+                                textAlign: lang === 'ar' ? 'right' : 'left'
+                              }}
+                            >
+                              {/* Top Row: Small Icon + Title on left, Delete Button on right */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
+                                  <div
+                                    className="history-cat-icon-circle"
+                                    style={{
+                                      width: '20px',
+                                      height: '20px',
+                                      borderRadius: '50%',
+                                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : iconConfig.bg,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {iconConfig.icon}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '12.5px',
+                                      fontWeight: 600,
+                                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      lineHeight: '1.3',
+                                      textAlign: lang === 'ar' ? 'right' : 'left'
+                                    }}
+                                    title={lang === 'ar' ? getArabicTitle(item.title) : item.title}
+                                  >
+                                    {lang === 'ar' ? getArabicTitle(item.title) : item.title}
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    className="collections-delete-btn"
+                                    title={lang === 'ar' ? 'إزالة من المفضلة' : "Remove from Favorites"}
+                                    onClick={() => handleToggleFavoritePlace(item)}
+                                    style={{
+                                      width: '26px',
+                                      height: '26px',
+                                      borderRadius: '6px',
+                                      border: theme === 'dark' ? '1px solid rgba(248, 113, 113, 0.40)' : '1px solid rgba(254, 226, 226, 0.8)',
+                                      background: theme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEF2F2',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      color: theme === 'dark' ? '#F87171' : '#EF4444',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.32)' : '#FEE2E2')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEF2F2')}
+                                  >
+                                    <Trash2 size={13} color={theme === 'dark' ? '#F87171' : '#EF4444'} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Bottom Row: Area + Category tag on left, Time on right */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden' }}>
+                                  <span style={{ fontSize: '10.5px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.75)' : '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {lang === 'ar' ? getArabicArea(item.area) : (item.area ? item.area.split(',')[0] : 'Abu Dhabi')}
+                                  </span>
+                                  <span
+                                    className="history-category-badge"
+                                    style={{
+                                      fontSize: '9.5px',
+                                      color: iconConfig.color,
+                                      background: iconConfig.badgeBg,
+                                      padding: '1.5px 6px',
+                                      borderRadius: '4px',
+                                      fontWeight: 600,
+                                      display: 'inline-block',
+                                      whiteSpace: 'nowrap',
+                                      textAlign: lang === 'ar' ? 'right' : 'left'
+                                    }}
+                                  >
+                                    {t.getCatName(item.category || item.subcategory || 'Location')}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {t.timeAgo(item.timestamp || 'Just now')}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: ALL CATEGORIES */}
+            {activeTab === 'categories' && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+                {/* PANEL HEADER WITH TITLE & CLOSE BUTTON */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    minHeight: '36px',
+                    marginBottom: '14px',
+                    position: 'relative',
+                    zIndex: 2
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                      margin: 0,
+                      padding: 0,
+                      lineHeight: '1.2',
+                      fontFamily: 'Outfit, Inter, sans-serif',
+                      letterSpacing: '-0.01em'
+                    }}
+                  >
+                    {t.allCategories || 'All Categories'}
+                  </h2>
+
+                  <button
+                    className="search-history-toggle-btn"
+                    onClick={() => setIsSidebarOpen(false)}
+                    title={lang === 'ar' ? 'طي اللوحة' : 'Collapse Categories Panel'}
+                    style={{
+                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.75)',
+                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid rgba(255, 255, 255, 0.85)',
+                      borderRadius: '8px',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: theme === 'dark' ? '#FFFFFF' : '#004B87',
+                      boxShadow: theme === 'dark' ? '0 2px 8px rgba(0, 0, 0, 0.35)' : '0 2px 6px rgba(0, 43, 91, 0.08)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <PanelLeftClose size={18} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                  </button>
+                </div>
+
+                {/* SEARCH FILTER INPUT BAR */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    marginBottom: '12px',
+                    zIndex: 2
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="search-history-filter-input"
+                    placeholder={t.filterCategoriesPlaceholder || (lang === 'ar' ? 'البحث في الفئات...' : "Search categories...")}
+                    value={categorySearchQuery}
+                    onChange={(e) => setCategorySearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
+                      borderRadius: '8px',
+                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.9)',
+                      background: theme === 'dark' ? 'rgba(14, 34, 70, 0.50)' : 'rgba(255, 255, 255, 0.85)',
+                      fontSize: '13px',
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      textAlign: lang === 'ar' ? 'right' : 'left'
+                    }}
+                  />
+                  <Search
+                    size={15}
+                    color={theme === 'dark' ? '#94A3B8' : '#94A3B8'}
+                    style={{
+                      position: 'absolute',
+                      right: lang === 'ar' ? 'auto' : '10px',
+                      left: lang === 'ar' ? '10px' : 'auto',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* CATEGORIES CARD LIST */}
+                <div
+                  className="search-history-list"
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    paddingRight: lang === 'ar' ? '0' : '2px',
+                    paddingLeft: lang === 'ar' ? '2px' : '0',
+                    zIndex: 2
+                  }}
+                >
+                  {CATEGORY_TREE
+                    .filter(cat =>
+                      !categorySearchQuery ||
+                      cat.name.toLowerCase().includes(categorySearchQuery.toLowerCase()) ||
+                      cat.subcategories.some(sub => sub.toLowerCase().includes(categorySearchQuery.toLowerCase()))
+                    )
+                    .map(cat => {
+                      const catColor = GIS_CATEGORY_COLORS[cat.name] || '#1D68F2';
+                      const isExpanded = expandedCategory === cat.name;
+                      const allSubSelected = cat.subcategories.length > 0 && cat.subcategories.every(sub => !!selectedSubcategories[sub]);
+                      const someSubSelected = cat.subcategories.some(sub => !!selectedSubcategories[sub]);
+
+                      return (
+                        <div key={cat.id} className="categories-accordion-item" style={{ marginBottom: '2px' }}>
+                          <div
+                            className={`categories-accordion-header ${isExpanded ? 'expanded' : ''}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              height: '38px',
+                              padding: '0 12px',
+                              background: isExpanded ? (theme === 'dark' ? `${catColor}28` : `${catColor}12`) : (theme === 'dark' ? 'rgba(14, 38, 77, 0.50)' : 'rgba(255, 255, 255, 0.75)'),
+                              border: isExpanded ? (theme === 'dark' ? `1px solid ${catColor}70` : `1px solid ${catColor}40`) : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(226, 232, 240, 0.8)'),
+                              borderLeft: lang === 'ar' ? 'none' : (isExpanded ? `3px solid ${catColor}` : '3px solid transparent'),
+                              borderRight: lang === 'ar' ? (isExpanded ? `3px solid ${catColor}` : '3px solid transparent') : 'none',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              boxShadow: isExpanded ? `0 2px 8px ${catColor}30` : (theme === 'dark' ? '0 2px 6px rgba(0, 0, 0, 0.25)' : '0 1px 3px rgba(0, 0, 0, 0.02)')
+                            }}
+                            onClick={() => setExpandedCategory(isExpanded ? null : cat.name)}
+                          >
+                            <div className="categories-header-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {isExpanded ? (
+                                <ChevronDown size={14} color={theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor} />
+                              ) : (
+                                lang === 'ar' ? <ChevronLeft size={14} color={theme === 'dark' ? '#94A3B8' : '#64748B'} /> : <ChevronRight size={14} color={theme === 'dark' ? '#94A3B8' : '#64748B'} />
+                              )}
+                              <span style={{ fontSize: '12.5px', fontWeight: 600, color: isExpanded ? (theme === 'dark' ? (catColor === '#1D68F2' ? '#60A5FA' : catColor) : catColor) : (theme === 'dark' ? '#F1F5F9' : '#334155') }}>
+                                {t.getCatName(cat.name)}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                              <span
+                                className="categories-badge"
+                                style={{
+                                  fontSize: '11px',
+                                  background: someSubSelected ? catColor : (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : `${catColor}18`),
+                                  color: someSubSelected ? '#FFFFFF' : (theme === 'dark' ? '#E2E8F0' : catColor),
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  border: someSubSelected ? `1px solid ${catColor}` : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : `1px solid ${catColor}30`)
+                                }}
+                                onClick={() => handleParentCategoryToggle(cat)}
+                                title={`Toggle all ${cat.name} subcategories`}
+                              >
+                                {cat.subcategories.length}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="categories-subcategories-list" style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: lang === 'ar' ? '0' : '4px', paddingRight: lang === 'ar' ? '4px' : '0', marginTop: '2px', marginBottom: '3px', background: 'transparent', border: 'none', padding: '2px 0' }}>
+                              {cat.subcategories.map(subcat => {
+                                const isSubSelected = !!selectedSubcategories[subcat];
+                                return (
+                                  <div
+                                    key={subcat}
+                                    className={`categories-subcat-item ${isSubSelected ? 'active' : ''}`}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '6px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                      color: isSubSelected ? (theme === 'dark' ? '#38BDF8' : '#004B87') : (theme === 'dark' ? '#E2E8F0' : '#334155'),
+                                      background: isSubSelected ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(0, 75, 135, 0.08)') : 'transparent',
+                                      border: isSubSelected ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid rgba(0, 75, 135, 0.35)') : '1px solid transparent',
+                                      fontWeight: isSubSelected ? 600 : 450,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    onClick={() => {
+                                      handleCategoryToggle(subcat);
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      {/* Child Branch Subcategory Checkbox */}
+                                      <div
+                                        className={`categories-checkbox ${isSubSelected ? 'checked' : ''}`}
+                                        style={{
+                                          width: '16px',
+                                          height: '16px',
+                                          borderRadius: '4px',
+                                          border: isSubSelected ? (theme === 'dark' ? '1.5px solid #38BDF8' : '1.5px solid #004B87') : (theme === 'dark' ? '1.5px solid rgba(255, 255, 255, 0.40)' : '1.5px solid #94A3B8'),
+                                          background: isSubSelected ? (theme === 'dark' ? '#0284C7' : '#004B87') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          transition: 'all 0.15s ease',
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {isSubSelected && (
+                                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                            <path d="M1.5 4L3.83333 6.5L8.5 1.5" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                          </svg>
+                                        )}
+                                      </div>
+                                      <span className="categories-subcat-text" style={{ color: isSubSelected ? (theme === 'dark' ? '#38BDF8' : '#002B5B') : (theme === 'dark' ? '#E2E8F0' : '#334155'), fontWeight: isSubSelected ? 600 : 450 }}>
+                                        {t.getSubcatName(subcat)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* PROJECT SELECTOR CARD (FOR OTHER TABS) */}
+            {activeTab !== 'history' && activeTab !== 'collections' && activeTab !== 'categories' && (
+              <div className="project-card">
+                <span className="meta-label" style={{ marginBottom: '-4px' }}>Active WebScene Project</span>
+                <select
+                  className="project-select"
+                  value={selectedProjectId}
+                  onChange={handleProjectChange}
+                >
+                  {PROJECTS.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+
+                <div className="meta-grid">
+                  <div className="meta-item">
+                    <span className="meta-label">Region</span>
+                    <span className="meta-value">{activeProject.activeRegion}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">BIM Layers</span>
+                    <span className="meta-value">{activeProject.buildingsCount} active</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Elev. Min</span>
+                    <span className="meta-value">{activeProject.minElevation}m</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Elev. Max</span>
+                    <span className="meta-value">{activeProject.maxElevation}m</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="section-divider"></div>
+
+            {/* TAB 1: LAYERS MANAGER */}
+            {activeTab === 'layers' && (
+              <div className="sidebar-section">
+                <span className="section-title">
+                  Operational Layers
+                  <Layers size={14} style={{ color: 'var(--text-muted)' }} />
+                </span>
+
+                <div className="layer-list">
+                  <div className={`layer-item ${layers.elevationSurface ? 'active' : ''}`}>
+                    <div className="layer-info">
+                      <Map size={14} className="layer-icon" />
+                      <span>Elevation Surface (Contours)</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={layers.elevationSurface}
+                        onChange={() => toggleLayer('elevationSurface')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className={`layer-item ${layers.buildings3D ? 'active' : ''}`}>
+                    <div className="layer-info">
+                      <Database size={14} className="layer-icon" />
+                      <span>Esri 3D Buildings (Multipatch)</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={layers.buildings3D}
+                        onChange={() => toggleLayer('buildings3D')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className={`layer-item ${layers.bimSublayers ? 'active' : ''}`}>
+                    <div className="layer-info">
+                      <Sliders size={14} className="layer-icon" />
+                      <span>BIM Architectural Sublayers</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        disabled={!layers.buildings3D}
+                        checked={layers.bimSublayers && layers.buildings3D}
+                        onChange={() => toggleLayer('bimSublayers')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className={`layer-item ${layers.projectBoundary ? 'active' : ''}`}>
+                    <div className="layer-info">
+                      <Shield size={14} className="layer-icon" />
+                      <span>Project Boundaries</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={layers.projectBoundary}
+                        onChange={() => toggleLayer('projectBoundary')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className={`layer-item ${layers.heatmapOverlay ? 'active' : ''}`}>
+                    <div className="layer-info">
+                      <Eye size={14} className="layer-icon" />
+                      <span>Terrain slope Heatmap</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={layers.heatmapOverlay}
+                        onChange={() => toggleLayer('heatmapOverlay')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="section-divider"></div>
+
+                {/* BIM LEVEL SLICER */}
+                <span className="section-title">BIM Building Floor Slicer</span>
+                <p className="meta-label" style={{ padding: '0 16px', marginTop: '6px' }}>Filter visual rendering depth by active floor level</p>
+                <div className="levels-grid" style={{ padding: '0 16px' }}>
+                  <button
+                    className={`level-btn ${selectedLevel === 'All' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedLevel('All');
+                      addLog('BIM', 'Slicer profile updated: Rendering all building levels.', 'system');
+                    }}
+                  >
+                    All
+                  </button>
+                  {activeProject.levels.map(lvl => (
+                    <button
+                      key={lvl}
+                      className={`level-btn ${selectedLevel === lvl ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedLevel(lvl);
+                        addLog('BIM', `Slicer profile updated: Isolating ${lvl} sublayers.`, 'warning');
+                      }}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: ANALYSIS TOOLS */}
+            {activeTab === 'analysis' && (
+              <div className="sidebar-section">
+                <span className="section-title">Volume Measurement Analysis</span>
+
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '140%' }}>
+                    Compute cut and fill volumes between coordinates on the current elevation surface.
+                  </p>
+
+                  <button
+                    className={`tab-btn ${volumeToolActive ? 'active' : ''}`}
+                    onClick={toggleVolumeTool}
+                    style={{
+                      backgroundColor: volumeToolActive ? 'rgba(0, 242, 254, 0.15)' : 'var(--bg-primary)',
+                      border: '1px solid ' + (volumeToolActive ? 'var(--accent-cyan)' : 'var(--border-color)'),
+                      color: volumeToolActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      width: '100%',
+                      justifyContent: 'center',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    <Ruler size={16} />
+                    {volumeToolActive ? 'Deactivate Volume Tool' : 'Activate Volume Tool'}
+                  </button>
+
+                  {volumeToolActive && clickPoints.length < 2 && (
+                    <div style={{
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(249, 115, 22, 0.05)',
+                      border: '1px dashed var(--accent-orange)',
+                      fontSize: '0.75rem',
+                      color: 'var(--accent-orange)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}>
+                      <span><strong>INSTRUCTIONS:</strong></span>
+                      <span>1. Click anywhere on the map to set <strong>Point A</strong>.</span>
+                      <span>2. Click a second location to set <strong>Point B</strong>.</span>
+                      <span>Current points: {clickPoints.length} / 2</span>
+                    </div>
+                  )}
+
+                  {volumeResult && (
+                    <div className="glass-panel" style={{ padding: '14px', marginTop: '4px', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--accent-cyan)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Calculation Results</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Range: 2D Projection</span>
+                      </div>
+                      <div className="hud-card-body" style={{ gap: '6px' }}>
+                        <div className="volume-stat-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>Distance:</span>
+                          <span style={{ color: 'var(--text-primary)' }}>{volumeResult.distance} m</span>
+                        </div>
+                        <div className="volume-stat-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>Cut Volume:</span>
+                          <span className="volume-val-positive">{volumeResult.cutVolume.toLocaleString()} m³</span>
+                        </div>
+                        <div className="volume-stat-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>Fill Volume:</span>
+                          <span className="volume-val-negative">{volumeResult.fillVolume.toLocaleString()} m³</span>
+                        </div>
+                        <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '6px 0' }} />
+                        <div className="volume-stat-row" style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
+                          <span>Net Balance:</span>
+                          <span style={{ color: volumeResult.netVolume >= 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)' }}>
+                            {volumeResult.netVolume >= 0 ? '+' : ''}{volumeResult.netVolume.toLocaleString()} m³
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="section-divider"></div>
+
+                {/* DYNAMIC ELEVATION PROFILE */}
+                <span className="section-title">Terrain Elevation Profile</span>
+                <div style={{ padding: '0 16px' }}>
+                  <div className="elevation-profile-container">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                      <span>Cross Section (W-E)</span>
+                      <span style={{ color: 'var(--accent-cyan)' }}>Active</span>
+                    </div>
+
+                    {/* SVG graph dynamically plots elevation profile from min/max elevation */}
+                    <svg className="elevation-graph-svg" viewBox="0 0 100 40" preserveAspectRatio="none">
+                      {(() => {
+                        const { minElevation, maxElevation } = activeProject;
+                        const range = maxElevation - minElevation || 1;
+                        // Generate 8 synthetic profile points using a sine curve
+                        const syntheticPts = [0, 15, 30, 45, 60, 75, 90, 100].map((x, i) => {
+                          const t = i / 7;
+                          const elevation = minElevation + range * (0.3 + 0.7 * Math.sin(Math.PI * t));
+                          const y = 40 - ((elevation - minElevation) / range) * 32;
+                          return `${x === 0 ? 'M 0 40 L 0' : 'L ' + x} ${y.toFixed(1)}`;
+                        });
+                        const d = syntheticPts.join(' ') + ' L 100 40 Z';
+                        return <path className="elevation-graph-path" d={d} />;
+                      })()}
+                    </svg>
+
+                    <div className="elevation-profile-values">
+                      <span>{activeProject.minElevation}m</span>
+                      <span>{((activeProject.minElevation + activeProject.maxElevation) / 2).toFixed(1)}m</span>
+                      <span>{activeProject.maxElevation}m</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: REGISTRY & SYSTEM */}
+            {activeTab === 'projects' && (
+              <div className="sidebar-section" style={{ padding: '16px' }}>
+                <span className="section-title" style={{ padding: 0, marginBottom: '12px' }}>Project Registry</span>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '140%' }}>
+                    Manage remote data endpoints and database connections for ArcGIS Server portal.
+                  </p>
+
+                  <button
+                    className="tab-btn"
+                    onClick={handleRefreshRegistry}
+                    style={{
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                      padding: '10px',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <RefreshCw size={14} /> Synchronize Registry
+                  </button>
+                </div>
+              </div>
+            )}
+            </div>
+          </aside>
+        )}
 
         {/* MAP VIEWPORT SECTION (MATCHING REFERENCE UI) */}
         <section className="map-viewport-container">
@@ -3170,8 +5065,8 @@ function App() {
             style={{
               position: 'absolute',
               bottom: '24px',
-              left: lang === 'ar' ? 'auto' : '20px',
-              right: lang === 'ar' ? '20px' : 'auto',
+              left: lang === 'ar' ? 'auto' : (isSidebarOpen ? `${leftHistoryWidth + 20}px` : '20px'),
+              right: lang === 'ar' ? (isSidebarOpen ? `${leftHistoryWidth + 20}px` : '20px') : 'auto',
               zIndex: 1000,
               display: 'flex',
               alignItems: 'flex-end',
@@ -3216,10 +5111,16 @@ function App() {
                 <div className="map-tools-vertical-dock">
                   {/* 1. Layers */}
                   <button
-                    className={`map-tool-dock-btn ${activeLeftPopover === 'legend' ? 'active' : ''}`}
-                    title={lang === 'ar' ? 'الطبقات ومفتاح الخريطة' : 'Layers & Legend'}
+                    className={`map-tool-dock-btn ${isSidebarOpen && activeTab === 'categories' ? 'active' : ''}`}
+                    title={lang === 'ar' ? 'الطبقات والفئات' : 'Layers & Categories'}
                     onClick={() => {
-                      setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend');
+                      setActiveLeftPopover(null);
+                      if (isSidebarOpen && activeTab === 'categories') {
+                        setIsSidebarOpen(false);
+                      } else {
+                        setIsSidebarOpen(true);
+                        setActiveTab('categories');
+                      }
                     }}
                   >
                     <Layers size={17} strokeWidth={2.2} />
@@ -3443,8 +5344,8 @@ function App() {
               className="map-popover-card basemap-grid-popover"
               style={{
                 bottom: '76px',
-                left: lang === 'ar' ? 'auto' : '74px',
-                right: lang === 'ar' ? '74px' : 'auto',
+                left: lang === 'ar' ? 'auto' : (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px'),
+                right: lang === 'ar' ? (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px') : 'auto',
                 transition: lang === 'ar' ? 'right 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                 direction: lang === 'ar' ? 'rtl' : 'ltr'
               }}
@@ -3509,8 +5410,8 @@ function App() {
               className="map-popover-card draw-popover-card"
               style={{
                 bottom: '76px',
-                left: lang === 'ar' ? 'auto' : '74px',
-                right: lang === 'ar' ? '74px' : 'auto',
+                left: lang === 'ar' ? 'auto' : (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px'),
+                right: lang === 'ar' ? (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px') : 'auto',
                 transition: lang === 'ar' ? 'right 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                 direction: lang === 'ar' ? 'rtl' : 'ltr'
               }}
@@ -3604,8 +5505,8 @@ function App() {
               className="map-popover-card legend-popover-card"
               style={{
                 bottom: '76px',
-                left: lang === 'ar' ? 'auto' : '74px',
-                right: lang === 'ar' ? '74px' : 'auto',
+                left: lang === 'ar' ? 'auto' : (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px'),
+                right: lang === 'ar' ? (isSidebarOpen ? `${leftHistoryWidth + 74}px` : '74px') : 'auto',
                 width: '235px',
                 transition: lang === 'ar' ? 'right 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                 direction: lang === 'ar' ? 'rtl' : 'ltr'
@@ -3734,7 +5635,7 @@ function App() {
               style={{
                 position: 'absolute',
                 bottom: '24px',
-                left: '50%',
+                left: isSidebarOpen ? (lang === 'ar' ? 'calc(50% - 140px)' : 'calc(50% + 140px)') : '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
                 width: '90%',
@@ -4272,7 +6173,7 @@ function App() {
           {/* RESIZABLE GEOVISION AI SPATIAL SEARCH PANEL (RIGHT SIDEBAR IN LTR / LEFT SIDEBAR IN RTL) */}
           {(isAISearchBarOpen || isAiClosing) && (
             <aside
-              className={`landing-search-card-wrapper map-ai-panel-wrapper ${isAiClosing ? 'mac-closing' : ''}`}
+              className={`landing-search-card-wrapper map-ai-panel-wrapper ${isAiClosing ? 'mac-closing' : ''} ${!isSidebarOpen ? 'sidebar-collapsed' : ''}`}
               style={{
                 position: 'relative',
                 height: '100%',
@@ -4340,151 +6241,216 @@ function App() {
                       boxSizing: 'border-box'
                     }}>
                       <div className="map-ai-panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {aiPanelSubView === 'favorites' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button
-                              type="button"
-                              style={{
-                                background: theme === 'dark' ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF',
-                                border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.30)' : '1px solid #DBEAFE',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                color: theme === 'dark' ? '#38bdf8' : '#1D68F2',
-                                padding: '4px 6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: '6px',
-                                transition: 'all 0.15s ease'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : '#DBEAFE';
-                                e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(56, 189, 248, 0.45)' : '#BFDBFE';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF';
-                                e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(56, 189, 248, 0.30)' : '#DBEAFE';
-                              }}
-                              title={lang === 'ar' ? 'العودة إلى محادثة المساعد الذكي' : 'Back to AI Chat'}
-                              onClick={() => setAiPanelSubView('chat')}
-                            >
-                              {lang === 'ar' ? <ArrowRight size={15} strokeWidth={2.4} /> : <ArrowLeft size={15} strokeWidth={2.4} />}
-                            </button>
-                            <h2 style={{
-                              fontSize: '15px',
-                              fontWeight: '700',
-                              color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                              margin: 0,
-                              padding: 0,
-                              lineHeight: '1.2',
-                              fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", Outfit, sans-serif' : 'Outfit, Inter, sans-serif'
-                            }}>
-                              {lang === 'ar' ? 'المفضلة' : 'Favorites'}
-                            </h2>
-                          </div>
-                        ) : aiPanelSubView === 'history' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button
-                              type="button"
-                              style={{
-                                background: theme === 'dark' ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF',
-                                border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.30)' : '1px solid #DBEAFE',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                color: theme === 'dark' ? '#38bdf8' : '#1D68F2',
-                                padding: '4px 6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: '6px',
-                                transition: 'all 0.15s ease'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : '#DBEAFE';
-                                e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(56, 189, 248, 0.45)' : '#BFDBFE';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = theme === 'dark' ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF';
-                                e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(56, 189, 248, 0.30)' : '#DBEAFE';
-                              }}
-                              title={lang === 'ar' ? 'العودة إلى محادثة المساعد الذكي' : 'Back to AI Chat'}
-                              onClick={() => setAiPanelSubView('chat')}
-                            >
-                              {lang === 'ar' ? <ArrowRight size={15} strokeWidth={2.4} /> : <ArrowLeft size={15} strokeWidth={2.4} />}
-                            </button>
-                            <h2 style={{
-                              fontSize: '15px',
-                              fontWeight: '700',
-                              color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                              margin: 0,
-                              padding: 0,
-                              lineHeight: '1.2',
-                              fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", Outfit, sans-serif' : 'Outfit, Inter, sans-serif'
-                            }}>
-                              {t.history || (lang === 'ar' ? 'سجل البحث' : 'History')}
-                            </h2>
-                          </div>
-                        ) : (
-                          <h2 style={{
-                            fontSize: '15px',
-                            fontWeight: '700',
-                            color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                            margin: 0,
-                            padding: 0,
-                            lineHeight: '1.2',
-                            fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", Outfit, sans-serif' : 'Outfit, Inter, sans-serif',
-                            letterSpacing: '-0.01em'
-                          }}>
-                            {t.aiSpatialSearch || (lang === 'ar' ? 'البحث المكاني الذكي' : 'AI Spatial Search')}
-                          </h2>
-                        )}
+                        <h2 style={{
+                          fontSize: '15px',
+                          fontWeight: '700',
+                          color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                          margin: 0,
+                          padding: 0,
+                          lineHeight: '1.2',
+                          fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", Outfit, sans-serif' : 'Outfit, Inter, sans-serif',
+                          letterSpacing: '-0.01em'
+                        }}>
+                          {t.aiSpatialSearch || (lang === 'ar' ? 'البحث المكاني الذكي' : 'AI Spatial Search')}
+                        </h2>
                       </div>
 
-                      {/* ACTION BUTTONS: FAVORITES, HISTORY, NEW CHAT & CLOSE */}
+                      {/* ACTION BUTTONS: CONTEXT, HISTORY, NEW CHAT & CLOSE */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {/* 0. FAVORITES BUTTON (FOR REGISTERED USERS) */}
-                        {isLoggedIn && (
-                          <button
-                            type="button"
-                            className={`search-history-toggle-btn ${aiPanelSubView === 'favorites' ? 'active' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAiPanelSubView(prev => prev === 'favorites' ? 'chat' : 'favorites');
-                            }}
-                            title={lang === 'ar' ? 'المفضلة' : "Favorites"}
-                            style={{
-                              background: aiPanelSubView === 'favorites'
-                                ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0, 75, 135, 0.12)')
-                                : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.75)'),
-                              border: aiPanelSubView === 'favorites'
-                                ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(0, 75, 135, 0.35)')
-                                : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.85)'),
-                              borderRadius: '8px',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              color: theme === 'dark' ? '#FFFFFF' : '#004B87',
-                              boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <Heart size={16} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} fill={aiPanelSubView === 'favorites' ? (theme === 'dark' ? '#38bdf8' : '#004B87') : 'none'} />
-                          </button>
+                        {/* 0. COMPACT CONTEXT INDICATOR BUTTON WITH POPOVER */}
+                        {activeContextBadges && activeContextBadges.length > 0 && (
+                          <div style={{ position: 'relative' }} ref={contextPopoverRef}>
+                            <button
+                              type="button"
+                              className={`search-history-toggle-btn ${isContextPopoverOpen ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsContextPopoverOpen(prev => !prev);
+                              }}
+                              title={lang === 'ar' ? 'عرض وإدارة السياق النشط' : "View & Manage Active Context"}
+                              style={{
+                                background: isContextPopoverOpen ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0, 75, 135, 0.14)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(240, 247, 255, 0.95)'),
+                                border: isContextPopoverOpen ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(0, 75, 135, 0.38)') : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(29, 104, 242, 0.28)'),
+                                borderRadius: '8px',
+                                height: '32px',
+                                padding: '0 8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                cursor: 'pointer',
+                                color: theme === 'dark' ? '#FFFFFF' : '#004B87',
+                                boxShadow: '0 2px 6px rgba(0, 43, 91, 0.08)',
+                                transition: 'all 0.2s ease',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", sans-serif' : 'Outfit, Inter, sans-serif'
+                              }}
+                            >
+                              <Compass size={14} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} strokeWidth={2.2} />
+                              <span>{lang === 'ar' ? 'السياق' : 'Context'}</span>
+                              <span
+                                className="context-count-badge"
+                                style={{
+                                  background: theme === 'dark' ? 'rgba(56, 189, 248, 0.35)' : '#004B87',
+                                  color: '#FFFFFF',
+                                  borderRadius: '10px',
+                                  padding: '1px 5px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  lineHeight: '1.2'
+                                }}
+                              >
+                                {activeContextBadges.length}
+                              </span>
+                            </button>
+
+                            {/* CONTEXT POPOVER DROPDOWN (FLOATING CARD) */}
+                            {isContextPopoverOpen && (
+                              <div
+                                className="active-context-popover"
+                                style={{
+                                  position: 'absolute',
+                                  top: 'calc(100% + 8px)',
+                                  left: lang === 'ar' ? 'auto' : '50%',
+                                  right: lang === 'ar' ? '50%' : 'auto',
+                                  transform: lang === 'ar' ? 'translateX(50%)' : 'translateX(-50%)',
+                                  width: '260px',
+                                  maxWidth: 'calc(100vw - 32px)',
+                                  background: theme === 'dark' ? 'rgba(10, 24, 50, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+                                  backdropFilter: 'blur(20px)',
+                                  WebkitBackdropFilter: 'blur(20px)',
+                                  border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(29, 104, 242, 0.22)',
+                                  borderRadius: '12px',
+                                  boxShadow: theme === 'dark' ? '0 14px 36px -4px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.4)' : '0 14px 36px -4px rgba(0, 43, 91, 0.22), 0 4px 14px rgba(0, 0, 0, 0.08)',
+                                  padding: '12px',
+                                  zIndex: 9999,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '8px',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {/* Popover Header */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(0, 75, 135, 0.08)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#002B5B' }}>
+                                    <Compass size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} />
+                                    <span>{lang === 'ar' ? 'السياق الحالي' : 'Current Context'}</span>
+                                  </div>
+                                  <span style={{ fontSize: '11px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.70)' : '#64748B', fontWeight: 500 }}>
+                                    {activeContextBadges.length} {lang === 'ar' ? 'قيود' : activeContextBadges.length === 1 ? 'filter' : 'filters'}
+                                  </span>
+                                </div>
+
+                                {/* Popover Chips List */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
+                                  {activeContextBadges.map((badge, bIdx) => (
+                                    <div
+                                      key={bIdx}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '5px 8px',
+                                        background: theme === 'dark' ? 'rgba(30, 58, 105, 0.75)' : 'rgba(240, 247, 255, 0.85)',
+                                        border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(29, 104, 242, 0.18)',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: 500,
+                                        color: theme === 'dark' ? '#F8FAFC' : '#002B5B'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {badge.type === 'location' && <MapPin size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'category' && (badge.id === 'Education' ? <GraduationCap size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} /> : <Heart size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} />)}
+                                        {badge.type === 'filter' && <Shield size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'radius' && <Compass size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} />}
+                                        {badge.type === 'selectedFeature' && <Target size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} style={{ flexShrink: 0 }} />}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{lang === 'ar' ? (badge.arabicLabel || badge.label) : badge.label}</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveContextBadge(badge.id);
+                                        }}
+                                        title={lang === 'ar' ? 'إزالة هذا القيد' : 'Remove this constraint'}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          padding: '2px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: theme === 'dark' ? '#94A3B8' : '#64748B',
+                                          borderRadius: '4px',
+                                          transition: 'color 0.15s ease'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = '#EF4444'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = theme === 'dark' ? '#94A3B8' : '#64748B'; }}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Popover Footer: Clear All */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleClearAllContext();
+                                  }}
+                                  style={{
+                                    marginTop: '2px',
+                                    padding: '6px 8px',
+                                    background: theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.06)',
+                                    border: theme === 'dark' ? '1px solid rgba(239, 68, 68, 0.30)' : '1px solid rgba(239, 68, 68, 0.2)',
+                                    borderRadius: '7px',
+                                    color: theme === 'dark' ? '#FCA5A5' : '#DC2626',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '5px',
+                                    transition: 'all 0.15s ease',
+                                    fontFamily: lang === 'ar' ? 'Cairo, "IBM Plex Sans Arabic", sans-serif' : 'Outfit, Inter, sans-serif'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.12)';
+                                    e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.35)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.06)';
+                                    e.currentTarget.style.borderColor = theme === 'dark' ? 'rgba(239, 68, 68, 0.30)' : 'rgba(239, 68, 68, 0.2)';
+                                  }}
+                                >
+                                  <Trash2 size={12} color={theme === 'dark' ? '#FCA5A5' : '#DC2626'} />
+                                  <span>{lang === 'ar' ? 'مسح كافة سياق المحادثة' : 'Clear all context'}</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
+
                         {/* 1. HISTORY BUTTON */}
                         <button
-                          className={`search-history-toggle-btn ${aiPanelSubView === 'history' ? 'active' : ''}`}
+                          className={`search-history-toggle-btn ${isSidebarOpen ? 'active' : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setAiPanelSubView(prev => prev === 'history' ? 'chat' : 'history');
+                            setIsSidebarOpen(prev => !prev);
+                            if (!isSidebarOpen) {
+                              setActiveTab('history');
+                              showToast(lang === 'ar' ? 'تم فتح سجل البحث' : 'Search History Opened');
+                            }
                           }}
                           title={lang === 'ar' ? 'سجل البحث' : "Search History"}
                           style={{
-                            background: aiPanelSubView === 'history' ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0, 75, 135, 0.12)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.75)'),
-                            border: aiPanelSubView === 'history' ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(0, 75, 135, 0.35)') : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.85)'),
+                            background: isSidebarOpen ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0, 75, 135, 0.12)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.75)'),
+                            border: isSidebarOpen ? (theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(0, 75, 135, 0.35)') : (theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.85)'),
                             borderRadius: '8px',
                             width: '32px',
                             height: '32px',
@@ -4556,1253 +6522,8 @@ function App() {
                     </div>
 
                     {!isAiMinimized && (
-                      aiPanelSubView === 'favorites' ? (
-                        /* FAVORITES VIEW EMBEDDED DIRECTLY IN AI PANEL */
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          flex: 1,
-                          height: '100%',
-                          width: '100%',
-                          minHeight: 0,
-                          overflow: 'hidden',
-                          padding: '8px 0 4px 0',
-                          boxSizing: 'border-box'
-                        }}>
-                          {/* Search Filter Input Bar */}
-                          <div
-                            style={{
-                              position: 'relative',
-                              width: '100%',
-                              marginBottom: '10px',
-                              flexShrink: 0
-                            }}
-                          >
-                            <input
-                              type="text"
-                              className="search-history-filter-input"
-                              placeholder={t.filterFavPlaceholder || (lang === 'ar' ? 'البحث في المفضلة...' : 'Search favorites...')}
-                              value={collectionsFilterQuery}
-                              onChange={(e) => setCollectionsFilterQuery(e.target.value)}
-                              style={{
-                                width: '100%',
-                                height: '36px',
-                                padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
-                                borderRadius: '8px',
-                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(226, 232, 240, 0.9)',
-                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
-                                fontSize: '12.5px',
-                                color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                                textAlign: lang === 'ar' ? 'right' : 'left'
-                              }}
-                            />
-                            <Search
-                              size={15}
-                              style={{
-                                position: 'absolute',
-                                [lang === 'ar' ? 'left' : 'right']: '10px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: theme === 'dark' ? '#94A3B8' : '#64748B',
-                                pointerEvents: 'none'
-                              }}
-                            />
-                          </div>
-
-                          {/* Favorites Items List */}
-                          <div
-                            className="search-history-list custom-scrollbar"
-                            style={{
-                              flex: 1,
-                              overflowY: 'auto',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '8px',
-                              paddingRight: lang === 'ar' ? '0' : '2px',
-                              paddingLeft: lang === 'ar' ? '2px' : '0'
-                            }}
-                          >
-                            {!isLoggedIn ? (
-                              <div style={{
-                                textAlign: 'center',
-                                padding: '36px 16px',
-                                color: theme === 'dark' ? '#94A3B8' : '#64748B',
-                                fontSize: '13px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '10px'
-                              }}>
-                                <Heart size={32} color="#EF4444" strokeWidth={1.5} />
-                                <div>{lang === 'ar' ? 'يرجى تسجيل الدخول للوصول إلى الأماكن المفضلة' : 'Please sign in to access your bookmarked places.'}</div>
-                                <button
-                                  type="button"
-                                  onClick={() => { setIsSignInOpen(true); }}
-                                  style={{
-                                    marginTop: '6px',
-                                    padding: '7px 16px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: theme === 'dark' 
-                                      ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' 
-                                      : 'linear-gradient(180deg, #004B87 0%, #002B5B 100%)',
-                                    color: '#FFFFFF',
-                                    fontSize: '12.5px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    boxShadow: theme === 'dark' 
-                                      ? '0 2px 8px rgba(2, 132, 199, 0.35)' 
-                                      : '0 2px 8px rgba(0, 43, 91, 0.25)',
-                                    transition: 'all 0.2s ease'
-                                  }}
-                                >
-                                  <LogIn size={14} />
-                                  <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
-                                </button>
-                              </div>
-                            ) : favoritePlaces.length === 0 ? (
-                              <div style={{ textAlign: 'center', padding: '36px 16px', color: theme === 'dark' ? '#94A3B8' : '#64748B', fontSize: '13px' }}>
-                                {lang === 'ar' ? 'لا توجد أماكن مفضلة محفوظة حتى الآن' : 'No favorite places bookmarked yet.'}
-                              </div>
-                            ) : (
-                              <>
-                                {favoritePlaces
-                                  .filter(item =>
-                                    !collectionsFilterQuery ||
-                                    item.title.toLowerCase().includes(collectionsFilterQuery.toLowerCase()) ||
-                                    (item.category && item.category.toLowerCase().includes(collectionsFilterQuery.toLowerCase())) ||
-                                    (item.area && item.area.toLowerCase().includes(collectionsFilterQuery.toLowerCase()))
-                                  )
-                                  .map((item) => {
-                                    const iconConfig = getCategoryIconForHistory(item.category || item.subcategory || item.title);
-                                    return (
-                                      <div
-                                        key={`ai-fav-place-${item.id}`}
-                                        className="search-history-item"
-                                        onClick={() => handleSelectFavoritePlace(item)}
-                                        style={{
-                                          position: 'relative',
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          justifyContent: 'space-between',
-                                          alignItems: 'flex-start',
-                                          width: '100%',
-                                          boxSizing: 'border-box',
-                                          padding: '10px 12px',
-                                          height: '65px',
-                                          minHeight: '65px',
-                                          maxHeight: '65px',
-                                          borderRadius: '10px',
-                                          background: theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.85)',
-                                          border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(226, 232, 240, 0.85)',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.15s ease',
-                                          boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
-                                          textAlign: lang === 'ar' ? 'right' : 'left'
-                                        }}
-                                      >
-                                        {/* Top Row: Small Icon + Title on left, Delete Button on right */}
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
-                                            <div
-                                              className="history-cat-icon-circle"
-                                              style={{
-                                                width: '20px',
-                                                height: '20px',
-                                                borderRadius: '50%',
-                                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : iconConfig.bg,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexShrink: 0
-                                              }}
-                                            >
-                                              {iconConfig.icon}
-                                            </div>
-                                            <div
-                                              style={{
-                                                fontSize: '12.5px',
-                                                fontWeight: 600,
-                                                color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                lineHeight: '1.3',
-                                                textAlign: lang === 'ar' ? 'right' : 'left'
-                                              }}
-                                              title={lang === 'ar' ? getArabicTitle(item.title) : item.title}
-                                            >
-                                              {lang === 'ar' ? getArabicTitle(item.title) : item.title}
-                                            </div>
-                                          </div>
-
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                              type="button"
-                                              className="collections-delete-btn"
-                                              title={lang === 'ar' ? 'إزالة من المفضلة' : "Remove from Favorites"}
-                                              onClick={() => handleToggleFavoritePlace(item)}
-                                              style={{
-                                                width: '26px',
-                                                height: '26px',
-                                                borderRadius: '6px',
-                                                border: theme === 'dark' ? '1px solid rgba(248, 113, 113, 0.40)' : '1px solid rgba(254, 226, 226, 0.8)',
-                                                background: theme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEF2F2',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: theme === 'dark' ? '#F87171' : '#EF4444',
-                                                transition: 'all 0.15s ease'
-                                              }}
-                                              onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.32)' : '#FEE2E2')}
-                                              onMouseLeave={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEF2F2')}
-                                            >
-                                              <Trash2 size={13} color={theme === 'dark' ? '#F87171' : '#EF4444'} />
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        {/* Bottom Row: Area + Category tag on left, Time on right */}
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '8px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden' }}>
-                                            <span style={{ fontSize: '10.5px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.75)' : '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                              {lang === 'ar' ? getArabicArea(item.area) : (item.area ? item.area.split(',')[0] : 'Abu Dhabi')}
-                                            </span>
-                                            <span
-                                              className="history-category-badge"
-                                              style={{
-                                                fontSize: '9.5px',
-                                                color: iconConfig.color,
-                                                background: iconConfig.badgeBg,
-                                                padding: '1.5px 6px',
-                                                borderRadius: '4px',
-                                                fontWeight: 600,
-                                                display: 'inline-block',
-                                                whiteSpace: 'nowrap',
-                                                textAlign: lang === 'ar' ? 'right' : 'left'
-                                              }}
-                                            >
-                                              {t.getCatName(item.category || item.subcategory || 'Location')}
-                                            </span>
-                                          </div>
-                                          <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                            {t.timeAgo(item.timestamp || 'Just now')}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ) : aiPanelSubView === 'history' ? (
-                        /* SEARCH HISTORY VIEW EMBEDDED DIRECTLY IN AI PANEL */
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          flex: 1,
-                          height: '100%',
-                          width: '100%',
-                          minHeight: 0,
-                          overflow: 'hidden',
-                          padding: '8px 0 4px 0',
-                          boxSizing: 'border-box'
-                        }}>
-                          {/* Search Filter Input Bar */}
-                          <div
-                            style={{
-                              position: 'relative',
-                              width: '100%',
-                              marginBottom: '10px',
-                              flexShrink: 0
-                            }}
-                          >
-                            <input
-                              type="text"
-                              className="search-history-filter-input"
-                              placeholder={t.filterHistoryPlaceholder || (lang === 'ar' ? 'البحث في سجل البحث...' : 'Search history...')}
-                              value={historyFilterQuery}
-                              onChange={(e) => setHistoryFilterQuery(e.target.value)}
-                              style={{
-                                width: '100%',
-                                height: '36px',
-                                padding: lang === 'ar' ? '0 12px 0 34px' : '0 34px 0 12px',
-                                borderRadius: '8px',
-                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(226, 232, 240, 0.9)',
-                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
-                                fontSize: '12.5px',
-                                color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                                textAlign: lang === 'ar' ? 'right' : 'left'
-                              }}
-                            />
-                            <Search
-                              size={15}
-                              style={{
-                                position: 'absolute',
-                                [lang === 'ar' ? 'left' : 'right']: '10px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: theme === 'dark' ? '#94A3B8' : '#64748B',
-                                pointerEvents: 'none'
-                              }}
-                            />
-                          </div>
-
-                          {/* Search History List */}
-                          <div
-                            className="search-history-list custom-scrollbar"
-                            style={{
-                              flex: 1,
-                              overflowY: 'auto',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '6px',
-                              paddingRight: lang === 'ar' ? '0' : '2px',
-                              paddingLeft: lang === 'ar' ? '2px' : '0'
-                            }}
-                          >
-                            {!isLoggedIn ? (
-                              <div style={{
-                                textAlign: 'center',
-                                padding: '36px 16px',
-                                color: theme === 'dark' ? '#94A3B8' : '#64748B',
-                                fontSize: '13px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '10px'
-                              }}>
-                                <History size={32} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={1.5} />
-                                <div>{lang === 'ar' ? 'يرجى تسجيل الدخول للوصول إلى سجل البحث' : 'Sign in to access your search history.'}</div>
-                                <button
-                                  type="button"
-                                  onClick={() => { setIsSignInOpen(true); }}
-                                  style={{
-                                    marginTop: '6px',
-                                    padding: '7px 16px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: theme === 'dark' 
-                                      ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' 
-                                      : 'linear-gradient(180deg, #004B87 0%, #002B5B 100%)',
-                                    color: '#FFFFFF',
-                                    fontSize: '12.5px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    boxShadow: theme === 'dark' 
-                                      ? '0 2px 8px rgba(2, 132, 199, 0.35)' 
-                                      : '0 2px 8px rgba(0, 43, 91, 0.25)',
-                                    transition: 'all 0.2s ease'
-                                  }}
-                                >
-                                  <LogIn size={14} />
-                                  <span>{lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
-                                </button>
-                              </div>
-                            ) : savedQueries.length === 0 && searchHistory.length === 0 ? (
-                              <div style={{ textAlign: 'center', padding: '36px 16px', color: theme === 'dark' ? '#94A3B8' : '#64748B', fontSize: '13px' }}>
-                                {lang === 'ar' ? 'لا يوجد سجل بحث حتى الآن' : 'No search history recorded yet.'}
-                              </div>
-                            ) : (
-                              <>
-                                {/* 1. PINNED SECTION (ACCORDION) */}
-                                <div
-                                  className="pinned-queries-section"
-                                  style={{
-                                    flexShrink: 0,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    marginBottom: savedQueries.length > 0 && isPinnedAccordionOpen ? '8px' : '4px',
-                                    overflow: 'hidden'
-                                  }}
-                                >
-                                  {/* Accordion Header */}
-                                  <div
-                                    onClick={() => setIsPinnedAccordionOpen(prev => !prev)}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '6px 8px',
-                                      borderRadius: '6px',
-                                      cursor: 'pointer',
-                                      userSelect: 'none',
-                                      transition: 'background 0.15s ease',
-                                      background: isPinnedAccordionOpen && savedQueries.length > 0
-                                        ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.08)' : 'rgba(0, 75, 135, 0.05)')
-                                        : 'transparent'
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <Pin size={12} color={theme === 'dark' ? '#38bdf8' : '#004B87'} fill={theme === 'dark' ? '#38bdf8' : '#004B87'} />
-                                      <span className="history-section-title" style={{ fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#002B5B' }}>
-                                        {t.pinned || (lang === 'ar' ? 'المثبتة' : 'Pinned')}
-                                      </span>
-                                    </div>
-
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      transition: 'transform 0.2s ease',
-                                      transform: isPinnedAccordionOpen ? 'rotate(0deg)' : (lang === 'ar' ? 'rotate(90deg)' : 'rotate(-90deg)')
-                                    }}>
-                                      <ChevronDown size={14} color={theme === 'dark' ? 'rgba(255, 255, 255, 0.60)' : '#64748B'} />
-                                    </div>
-                                  </div>
-
-                                  {/* Accordion Body */}
-                                  {isPinnedAccordionOpen && savedQueries.length > 0 && (
-                                    <div
-                                      className="pinned-queries-scroll-list"
-                                      style={{
-                                        maxHeight: '220px',
-                                        overflowY: 'auto',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '6px',
-                                        marginTop: '6px',
-                                        paddingRight: lang === 'ar' ? '0' : '2px',
-                                        paddingLeft: lang === 'ar' ? '2px' : '0'
-                                      }}
-                                    >
-                                      {savedQueries
-                                        .filter(item =>
-                                          !historyFilterQuery ||
-                                          (item.title && item.title.toLowerCase().includes(historyFilterQuery.toLowerCase())) ||
-                                          (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
-                                        )
-                                        .map((item) => {
-                                          const iconConfig = getCategoryIconForHistory(item.category || item.title);
-                                          const matchCount = (typeof item.resultsCount === 'number' && item.resultsCount > 0)
-                                            ? item.resultsCount
-                                            : (typeof item.queryState?.resultsCount === 'number' && item.queryState.resultsCount > 0)
-                                            ? item.queryState.resultsCount
-                                            : (item.title || item.text || '').toLowerCase().includes('health') || (item.category || '').toLowerCase().includes('health') ? 9
-                                            : (item.title || item.text || '').toLowerCase().includes('khalifa') || (item.category || '').toLowerCase().includes('gov') ? 12
-                                            : (item.title || item.text || '').toLowerCase().includes('school') || (item.category || '').toLowerCase().includes('educ') ? 8
-                                            : (item.title || item.text || '').toLowerCase().includes('park') || (item.category || '').toLowerCase().includes('park') ? 5
-                                            : (item.title || item.text || '').toLowerCase().includes('bus') || (item.category || '').toLowerCase().includes('trans') ? 14
-                                            : (item.title || item.text || '').toLowerCase().includes('drawn') || (item.category || '').toLowerCase().includes('drawn') ? 3
-                                            : 8;
-                                          return (
-                                            <div
-                                              key={item.id}
-                                              className={`search-history-item ${activeQueryMenuId === item.id ? 'has-active-menu' : ''}`}
-                                              onClick={() => handleRestoreSavedQuery(item)}
-                                              style={{
-                                                position: 'relative',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'flex-start',
-                                                width: '100%',
-                                                boxSizing: 'border-box',
-                                                padding: '10px 12px',
-                                                height: '65px',
-                                                minHeight: '65px',
-                                                maxHeight: '65px',
-                                                borderRadius: '8px',
-                                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.92)',
-                                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(0, 75, 135, 0.16)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s ease',
-                                                boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
-                                                textAlign: lang === 'ar' ? 'right' : 'left'
-                                              }}
-                                            >
-                                              {/* Top Row: Category Icon + Title on left, Action Buttons on right */}
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
-                                                  <div
-                                                    className="history-cat-icon-circle"
-                                                    style={{
-                                                      width: '22px',
-                                                      height: '22px',
-                                                      borderRadius: '50%',
-                                                      background: iconConfig.bg,
-                                                      border: `1px solid ${iconConfig.border || 'transparent'}`,
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      flexShrink: 0
-                                                    }}
-                                                  >
-                                                    {iconConfig.icon}
-                                                  </div>
-                                                  {renamingQueryId === item.id ? (
-                                                    <div
-                                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
-                                                      onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                      <input
-                                                        type="text"
-                                                        value={renameQueryText}
-                                                        onChange={(e) => setRenameQueryText(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                          if (e.key === 'Enter') handleSaveRenameQuery(item.id);
-                                                          if (e.key === 'Escape') setRenamingQueryId(null);
-                                                        }}
-                                                        autoFocus
-                                                        style={{
-                                                          flex: 1,
-                                                          padding: '2px 5px',
-                                                          fontSize: '11.5px',
-                                                          borderRadius: '4px',
-                                                          border: '1px solid #1D68F2',
-                                                          outline: 'none',
-                                                          background: '#FFFFFF',
-                                                          color: '#002B5B',
-                                                          textAlign: lang === 'ar' ? 'right' : 'left'
-                                                        }}
-                                                      />
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleSaveRenameQuery(item.id)}
-                                                        style={{ padding: '2px 5px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
-                                                      >
-                                                        <Check size={11} />
-                                                      </button>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => setRenamingQueryId(null)}
-                                                        style={{ padding: '2px 5px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
-                                                      >
-                                                        <X size={11} />
-                                                      </button>
-                                                    </div>
-                                                  ) : (
-                                                    <div
-                                                      style={{
-                                                        fontSize: '12px',
-                                                        fontWeight: 600,
-                                                        color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        lineHeight: '1.25',
-                                                        textAlign: lang === 'ar' ? 'right' : 'left'
-                                                      }}
-                                                      title={lang === 'ar' ? getArabicTitle(item.title) : item.title}
-                                                    >
-                                                      {lang === 'ar' ? getArabicTitle(item.title) : item.title}
-                                                    </div>
-                                                  )}
-                                                </div>
-
-                                                {/* Action Buttons: Quick Unpin + 3-Dot Menu */}
-                                                <div className="history-action-buttons-group" style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                                  <button
-                                                    type="button"
-                                                    title={lang === 'ar' ? 'إلغاء التثبيت' : 'Unpin query'}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      handleUnpinQuery(item);
-                                                    }}
-                                                    className="history-quick-action-btn"
-                                                    style={{
-                                                      width: '22px',
-                                                      height: '22px',
-                                                      borderRadius: '6px',
-                                                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(0, 75, 135, 0.16)',
-                                                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 75, 135, 0.06)',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      cursor: 'pointer',
-                                                      color: theme === 'dark' ? '#FFFFFF' : '#004B87',
-                                                      transition: 'all 0.15s ease'
-                                                    }}
-                                                  >
-                                                    <Pin size={11} color={theme === 'dark' ? '#FFFFFF' : '#004B87'} fill={theme === 'dark' ? '#FFFFFF' : '#004B87'} />
-                                                  </button>
-
-                                                  <div className="query-menu-container" style={{ position: 'relative' }}>
-                                                    <button
-                                                      type="button"
-                                                      title={lang === 'ar' ? 'خيارات الاستعلام' : 'Query Options'}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (activeQueryMenuId === item.id) {
-                                                          setActiveQueryMenuId(null);
-                                                        } else {
-                                                          const rect = e.currentTarget.getBoundingClientRect();
-                                                          const menuWidth = 155;
-                                                          const menuHeight = 145;
-                                                          let top = rect.bottom + 4;
-                                                          if (top + menuHeight > window.innerHeight - 10) {
-                                                            top = Math.max(10, rect.top - menuHeight - 4);
-                                                          }
-                                                          let left;
-                                                          if (lang === 'ar') {
-                                                            left = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, rect.left));
-                                                          } else {
-                                                            left = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, rect.right - menuWidth));
-                                                          }
-                                                          setQueryMenuPos({ top, left });
-                                                          setActiveQueryMenuId(item.id);
-                                                        }
-                                                      }}
-                                                      style={{
-                                                        width: '22px',
-                                                        height: '22px',
-                                                        borderRadius: '6px',
-                                                        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
-                                                        background: activeQueryMenuId === item.id ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(29, 104, 242, 0.08)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        cursor: 'pointer',
-                                                        color: theme === 'dark' ? '#FFFFFF' : '#64748B',
-                                                        transition: 'all 0.15s ease'
-                                                      }}
-                                                    >
-                                                      <MoreVertical size={12} />
-                                                    </button>
-
-                                                    {/* Dropdown Menu (Portal) */}
-                                                    {activeQueryMenuId === item.id && createPortal(
-                                                      <div
-                                                        className="floating-history-dropdown"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        style={{
-                                                          position: 'fixed',
-                                                          top: `${queryMenuPos.top}px`,
-                                                          left: `${queryMenuPos.left}px`,
-                                                          width: '155px',
-                                                          background: theme === 'dark' ? 'rgba(10, 24, 50, 0.96)' : 'rgba(255, 255, 255, 0.98)',
-                                                          backdropFilter: 'blur(16px)',
-                                                          borderRadius: '8px',
-                                                          border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.95)',
-                                                          boxShadow: theme === 'dark' ? '0 10px 30px rgba(0, 0, 0, 0.60)' : '0 8px 24px rgba(0, 43, 91, 0.16)',
-                                                          zIndex: 999999,
-                                                          padding: '4px',
-                                                          display: 'flex',
-                                                          flexDirection: 'column',
-                                                          gap: '2px',
-                                                          direction: lang === 'ar' ? 'rtl' : 'ltr'
-                                                        }}
-                                                      >
-                                                        {/* 1. Run Query */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => handleRestoreSavedQuery(item)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Play size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.runQuery || 'Run Query'}</span>
-                                                        </button>
-
-                                                        {/* 2. Unpin Query */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => {
-                                                            handleUnpinQuery(item);
-                                                            setActiveQueryMenuId(null);
-                                                          }}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <PinOff size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>
-                                                            {t.unpinQuery || 'Unpin Query'}
-                                                          </span>
-                                                        </button>
-
-                                                        {/* 3. Rename */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => handleStartRenameQuery(item.id, item.title)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Edit2 size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.renameQuery || t.rename || 'Rename'}</span>
-                                                        </button>
-
-                                                        {/* 4. Delete */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item delete"
-                                                          onClick={() => handleDeleteSavedQuery(item.id)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: '#EF4444',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Trash2 size={13} color="#EF4444" />
-                                                          <span style={{ fontWeight: 500, color: '#EF4444' }}>{t.deleteQuery || t.delete || 'Delete'}</span>
-                                                        </button>
-                                                      </div>,
-                                                      document.body
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </div>
-
-                                              {/* Bottom Row: Places match badge + Category badge on left, Time on right */}
-                                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '6px' }}>
-                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' }}>
-                                                   <span
-                                                      className="history-places-text"
-                                                      style={{
-                                                        fontSize: '10px',
-                                                        fontWeight: 500,
-                                                        color: theme === 'dark' ? 'rgba(255, 255, 255, 0.65)' : '#64748B',
-                                                        whiteSpace: 'nowrap',
-                                                        textAlign: lang === 'ar' ? 'right' : 'left'
-                                                      }}
-                                                    >
-                                                      {t.placesMatch ? t.placesMatch(matchCount) : `${matchCount} ${lang === 'ar' ? 'أماكن متطابقة' : 'places match'}`}
-                                                    </span>
-                                                   <span
-                                                     className="history-category-badge"
-                                                     style={{
-                                                       fontSize: '9.5px',
-                                                       color: iconConfig.color,
-                                                       background: iconConfig.badgeBg,
-                                                       border: `1px solid ${iconConfig.border || 'transparent'}`,
-                                                       padding: '1.5px 5.5px',
-                                                       borderRadius: '4px',
-                                                       fontWeight: 600,
-                                                       display: 'inline-block',
-                                                       whiteSpace: 'nowrap',
-                                                       textAlign: lang === 'ar' ? 'right' : 'left'
-                                                     }}
-                                                   >
-                                                     {t.getCatName(item.category || 'General')}
-                                                   </span>
-                                                 </div>
-                                                 <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                                   {t.timeAgo(item.timestamp || 'Just now')}
-                                                 </span>
-                                               </div>
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* 2. RECENTS SECTION (ACCORDION) */}
-                                <div
-                                  className="recents-queries-section"
-                                  style={{
-                                    flex: 1,
-                                    minHeight: 0,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    overflow: 'hidden'
-                                  }}
-                                >
-                                  {/* Accordion Header */}
-                                  <div
-                                    onClick={() => setIsRecentAccordionOpen(prev => !prev)}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '6px 8px',
-                                      borderRadius: '6px',
-                                      cursor: 'pointer',
-                                      userSelect: 'none',
-                                      transition: 'background 0.15s ease',
-                                      flexShrink: 0,
-                                      background: isRecentAccordionOpen
-                                        ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.04)' : 'rgba(0, 75, 135, 0.03)')
-                                        : 'transparent'
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <Clock size={12} color={theme === 'dark' ? '#38bdf8' : '#64748B'} />
-                                      <span className="history-section-title" style={{ fontSize: '12px', fontWeight: 700, color: theme === 'dark' ? '#FFFFFF' : '#334155' }}>
-                                        {t.recents || (lang === 'ar' ? 'الأخيرة' : 'Recents')}
-                                      </span>
-                                    </div>
-
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      transition: 'transform 0.2s ease',
-                                      transform: isRecentAccordionOpen ? 'rotate(0deg)' : (lang === 'ar' ? 'rotate(90deg)' : 'rotate(-90deg)')
-                                    }}>
-                                      <ChevronDown size={14} color={theme === 'dark' ? 'rgba(255, 255, 255, 0.60)' : '#64748B'} />
-                                    </div>
-                                  </div>
-
-                                  {isRecentAccordionOpen && (
-                                    <div
-                                      className="recents-queries-scroll-list"
-                                      style={{
-                                        flex: 1,
-                                        minHeight: 0,
-                                        overflowY: 'auto',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '6px',
-                                        paddingRight: lang === 'ar' ? '0' : '2px',
-                                        paddingLeft: lang === 'ar' ? '2px' : '0'
-                                      }}
-                                    >
-                                      {searchHistory
-                                        .filter(item =>
-                                          !historyFilterQuery ||
-                                          (item.text && item.text.toLowerCase().includes(historyFilterQuery.toLowerCase())) ||
-                                          (item.category && item.category.toLowerCase().includes(historyFilterQuery.toLowerCase()))
-                                        )
-                                        .map((item) => {
-                                          const iconConfig = getCategoryIconForHistory(item.category || item.text);
-                                          const matchCount = (typeof item.resultsCount === 'number' && item.resultsCount > 0)
-                                            ? item.resultsCount
-                                            : (typeof item.queryState?.resultsCount === 'number' && item.queryState.resultsCount > 0)
-                                            ? item.queryState.resultsCount
-                                            : (item.title || item.text || '').toLowerCase().includes('health') || (item.category || '').toLowerCase().includes('health') ? 9
-                                            : (item.title || item.text || '').toLowerCase().includes('khalifa') || (item.category || '').toLowerCase().includes('gov') ? 12
-                                            : (item.title || item.text || '').toLowerCase().includes('school') || (item.category || '').toLowerCase().includes('educ') ? 8
-                                            : (item.title || item.text || '').toLowerCase().includes('park') || (item.category || '').toLowerCase().includes('park') ? 5
-                                            : (item.title || item.text || '').toLowerCase().includes('bus') || (item.category || '').toLowerCase().includes('trans') ? 14
-                                            : (item.title || item.text || '').toLowerCase().includes('drawn') || (item.category || '').toLowerCase().includes('drawn') ? 3
-                                            : 8;
-                                          return (
-                                            <div
-                                              key={item.id}
-                                              className={`search-history-item ${activeHistoryMenuId === item.id ? 'has-active-menu' : ''}`}
-                                              onClick={() => handleRunHistoryQuery(item)}
-                                              style={{
-                                                position: 'relative',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'flex-start',
-                                                width: '100%',
-                                                boxSizing: 'border-box',
-                                                padding: '10px 12px',
-                                                height: '65px',
-                                                minHeight: '65px',
-                                                maxHeight: '65px',
-                                                borderRadius: '8px',
-                                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.88)',
-                                                border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(226, 232, 240, 0.9)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s ease',
-                                                boxShadow: '0 1px 3px rgba(0, 43, 91, 0.03)',
-                                                textAlign: lang === 'ar' ? 'right' : 'left'
-                                              }}
-                                            >
-                                              {/* Top Row: Icon + Title + Action Buttons */}
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
-                                                  <div
-                                                    className="history-cat-icon-circle"
-                                                    style={{
-                                                      width: '22px',
-                                                      height: '22px',
-                                                      borderRadius: '50%',
-                                                      background: iconConfig.bg,
-                                                      border: `1px solid ${iconConfig.border || 'transparent'}`,
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      flexShrink: 0
-                                                    }}
-                                                  >
-                                                    {iconConfig.icon}
-                                                  </div>
-                                                  {renamingHistoryId === item.id ? (
-                                                    <div
-                                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}
-                                                      onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                      <input
-                                                        type="text"
-                                                        value={renameHistoryText}
-                                                        onChange={(e) => setRenameHistoryText(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                          if (e.key === 'Enter') handleSaveRenameHistory(item.id);
-                                                          if (e.key === 'Escape') setRenamingHistoryId(null);
-                                                        }}
-                                                        autoFocus
-                                                        style={{
-                                                          flex: 1,
-                                                          padding: '2px 5px',
-                                                          fontSize: '11.5px',
-                                                          borderRadius: '4px',
-                                                          border: '1px solid #1D68F2',
-                                                          outline: 'none',
-                                                          background: '#FFFFFF',
-                                                          color: '#002B5B',
-                                                          textAlign: lang === 'ar' ? 'right' : 'left'
-                                                        }}
-                                                      />
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleSaveRenameHistory(item.id)}
-                                                        style={{ padding: '2px 5px', background: '#1D68F2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
-                                                      >
-                                                        <Check size={11} />
-                                                      </button>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => setRenamingHistoryId(null)}
-                                                        style={{ padding: '2px 5px', background: '#E2E8F0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10.5px' }}
-                                                      >
-                                                        <X size={11} />
-                                                      </button>
-                                                    </div>
-                                                  ) : (
-                                                    <div
-                                                      style={{
-                                                        fontSize: '12px',
-                                                        fontWeight: 600,
-                                                        color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        lineHeight: '1.25',
-                                                        textAlign: lang === 'ar' ? 'right' : 'left'
-                                                      }}
-                                                      title={lang === 'ar' ? getArabicTitle(item.text) : item.text}
-                                                    >
-                                                      {lang === 'ar' ? getArabicTitle(item.text) : item.text}
-                                                    </div>
-                                                  )}
-                                                </div>
-
-                                                {/* Action Buttons: Quick Pin + 3-Dot Dropdown */}
-                                                <div className="history-action-buttons-group" style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                                  <button
-                                                    type="button"
-                                                    title={lang === 'ar' ? 'تثبيت الاستعلام' : 'Pin query'}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      handlePinQuery(item);
-                                                    }}
-                                                    className="history-quick-action-btn"
-                                                    style={{
-                                                      width: '22px',
-                                                      height: '22px',
-                                                      borderRadius: '6px',
-                                                      border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
-                                                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      cursor: 'pointer',
-                                                      color: theme === 'dark' ? '#FFFFFF' : '#64748B',
-                                                      transition: 'all 0.15s ease'
-                                                    }}
-                                                  >
-                                                    <Pin size={11} color={theme === 'dark' ? '#FFFFFF' : '#64748B'} />
-                                                  </button>
-
-                                                  <div className="history-menu-container" style={{ position: 'relative' }}>
-                                                    <button
-                                                      type="button"
-                                                      title={lang === 'ar' ? 'خيارات السجل' : 'History Options'}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (activeHistoryMenuId === item.id) {
-                                                          setActiveHistoryMenuId(null);
-                                                        } else {
-                                                          const rect = e.currentTarget.getBoundingClientRect();
-                                                          const menuWidth = 155;
-                                                          const menuHeight = 145;
-                                                          let top = rect.bottom + 4;
-                                                          if (top + menuHeight > window.innerHeight - 10) {
-                                                            top = Math.max(10, rect.top - menuHeight - 4);
-                                                          }
-                                                          let left;
-                                                          if (lang === 'ar') {
-                                                            left = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, rect.left));
-                                                          } else {
-                                                            left = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, rect.right - menuWidth));
-                                                          }
-                                                          setHistoryMenuPos({ top, left });
-                                                          setActiveHistoryMenuId(item.id);
-                                                        }
-                                                      }}
-                                                      style={{
-                                                        width: '22px',
-                                                        height: '22px',
-                                                        borderRadius: '6px',
-                                                        border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(203, 213, 225, 0.8)',
-                                                        background: activeHistoryMenuId === item.id ? (theme === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(29, 104, 242, 0.08)') : (theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        cursor: 'pointer',
-                                                        color: theme === 'dark' ? '#FFFFFF' : '#64748B',
-                                                        transition: 'all 0.15s ease'
-                                                      }}
-                                                    >
-                                                      <MoreVertical size={12} />
-                                                    </button>
-
-                                                    {/* Floating Portal Dropdown */}
-                                                    {activeHistoryMenuId === item.id && createPortal(
-                                                      <div
-                                                        className="floating-history-dropdown"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        style={{
-                                                          position: 'fixed',
-                                                          top: `${historyMenuPos.top}px`,
-                                                          left: `${historyMenuPos.left}px`,
-                                                          width: '155px',
-                                                          background: theme === 'dark' ? 'rgba(10, 24, 50, 0.96)' : 'rgba(255, 255, 255, 0.98)',
-                                                          backdropFilter: 'blur(16px)',
-                                                          borderRadius: '8px',
-                                                          border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid rgba(226, 232, 240, 0.95)',
-                                                          boxShadow: theme === 'dark' ? '0 10px 30px rgba(0, 0, 0, 0.60)' : '0 8px 24px rgba(0, 43, 91, 0.16)',
-                                                          zIndex: 999999,
-                                                          padding: '4px',
-                                                          display: 'flex',
-                                                          flexDirection: 'column',
-                                                          gap: '2px',
-                                                          direction: lang === 'ar' ? 'rtl' : 'ltr'
-                                                        }}
-                                                      >
-                                                        {/* 1. Run Query */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => handleRunHistoryQuery(item)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Play size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} strokeWidth={2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.runQuery || 'Run Query'}</span>
-                                                        </button>
-
-                                                        {/* 2. Pin Query */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => {
-                                                            handlePinQuery(item);
-                                                            setActiveHistoryMenuId(null);
-                                                          }}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Pin size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.pinned || 'Pin'}</span>
-                                                        </button>
-
-                                                        {/* 3. Rename */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item"
-                                                          onClick={() => handleStartRenameHistory(item.id, item.text)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: theme === 'dark' ? '#F8FAFC' : '#002B5B',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(30, 64, 120, 0.80)' : '#EFF6FF')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Edit2 size={13} color={theme === 'dark' ? '#38bdf8' : '#004B87'} />
-                                                          <span style={{ fontWeight: 500, color: theme === 'dark' ? '#F8FAFC' : '#002B5B' }}>{t.renameQuery || t.rename || 'Rename'}</span>
-                                                        </button>
-
-                                                        {/* 4. Delete */}
-                                                        <button
-                                                          type="button"
-                                                          className="floating-history-dropdown-item delete"
-                                                          onClick={() => handleDeleteHistory(item.id)}
-                                                          style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 8px',
-                                                            fontSize: '11.5px',
-                                                            color: '#EF4444',
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            textAlign: lang === 'ar' ? 'right' : 'left',
-                                                            width: '100%',
-                                                            transition: 'background 0.15s ease'
-                                                          }}
-                                                          onMouseEnter={(e) => (e.currentTarget.style.background = theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2')}
-                                                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                                                        >
-                                                          <Trash2 size={13} color="#EF4444" />
-                                                          <span style={{ fontWeight: 500, color: '#EF4444' }}>{t.deleteQuery || t.delete || 'Delete'}</span>
-                                                        </button>
-                                                      </div>,
-                                                      document.body
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </div>
-
-                                              {/* Bottom Row: Places match badge + Category badge on left, Time on right */}
-                                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: 0, gap: '6px' }}>
-                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' }}>
-                                                   <span
-                                                      className="history-places-text"
-                                                      style={{
-                                                        fontSize: '10px',
-                                                        fontWeight: 500,
-                                                        color: theme === 'dark' ? 'rgba(255, 255, 255, 0.65)' : '#64748B',
-                                                        whiteSpace: 'nowrap',
-                                                        textAlign: lang === 'ar' ? 'right' : 'left'
-                                                      }}
-                                                    >
-                                                      {t.placesMatch ? t.placesMatch(matchCount) : `${matchCount} ${lang === 'ar' ? 'أماكن متطابقة' : 'places match'}`}
-                                                    </span>
-                                                   <span
-                                                     className="history-category-badge"
-                                                     style={{
-                                                       fontSize: '9.5px',
-                                                       color: iconConfig.color,
-                                                       background: iconConfig.badgeBg,
-                                                       border: `1px solid ${iconConfig.border || 'transparent'}`,
-                                                       padding: '1.5px 5.5px',
-                                                       borderRadius: '4px',
-                                                       fontWeight: 600,
-                                                       display: 'inline-block',
-                                                       whiteSpace: 'nowrap',
-                                                       textAlign: lang === 'ar' ? 'right' : 'left'
-                                                     }}
-                                                   >
-                                                     {t.getCatName(item.category || 'General')}
-                                                   </span>
-                                                 </div>
-                                                 <span style={{ fontSize: '10px', color: theme === 'dark' ? 'rgba(255, 255, 255, 0.55)' : '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                                   {t.timeAgo(item.timestamp || 'Just now')}
-                                                 </span>
-                                               </div>
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* MIDDLE CHAT / CONVERSATION STREAM AREA */}
+                      <>
+                        {/* MIDDLE CHAT / CONVERSATION STREAM AREA */}
                     <div ref={chatMessagesContainerRef} className="map-ai-panel-body" style={{
                       opacity: 1,
                       flex: 1,
@@ -5849,35 +6570,8 @@ function App() {
                                 flex: msg.id === 'welcome-init' && chatMessages.length === 1 ? 1 : 'none'
                               }}
                             >
-                              {/* Active Spatial Boundary Badge for User Queries (if attached) */}
-                                {msg.sender === 'user' && msg.drawnArea && (
-                                  <div
-                                    className="user-msg-spatial-boundary-badge"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px',
-                                      padding: '2px 8px',
-                                      borderRadius: '6px',
-                                      background: theme === 'dark' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(29, 104, 242, 0.10)',
-                                      border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(29, 104, 242, 0.22)',
-                                      fontSize: '10.5px',
-                                      fontWeight: 600,
-                                      color: theme === 'dark' ? '#38bdf8' : '#1D68F2',
-                                      marginBottom: '2px',
-                                      alignSelf: lang === 'ar' ? 'flex-start' : 'flex-end'
-                                    }}
-                                  >
-                                    <SquarePen size={11} strokeWidth={2.2} />
-                                    <span>
-                                      {lang === 'ar' ? 'نطاق جغرافي: ' : 'Spatial Boundary: '}
-                                      {getDrawnAreaLabel(msg.drawnArea, lang)}
-                                    </span>
-                                  </div>
-                                )}
-
-                                <div className={`chat-bubble ${msg.sender}`}>
-                                  {msg.sender === 'user' ? (
+                              <div className={`chat-bubble ${msg.sender}`}>
+                                {msg.sender === 'user' ? (
                                   editingMessageIdx === idx ? (
                                     <div
                                       className="chat-bubble-content user-query-edit-container"
@@ -6448,118 +7142,61 @@ function App() {
                                     })}
                                   </div>
                                 )}
-                              </div>
-                            ))}
-                        </div>
+
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* BOTTOM SEARCH INPUT BAR */}
+                    <form
+                      className="landing-search-container"
+                      style={{
+                        margin: '0 0 4px 0',
+                        width: '100%',
+                        maxWidth: '100%',
+                        flex: '0 0 46px',
+                        height: '46px',
+                        minHeight: '46px',
+                        maxHeight: '46px',
+                        borderRadius: '12px',
+                        position: 'relative',
+                        padding: '0 6px 0 8px',
+                        boxSizing: 'border-box'
+                      }}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (aiSearchQuery.trim()) {
+                          handleUnifiedSearch({ query: aiSearchQuery });
+                          setAiSearchQuery('');
+                          setShowPlusMenu(false);
+                        }
+                      }}
+                    >
+                      {/* Animated AI Sparkle Orb Icon (Matching Home Page) */}
+                      <div className="search-star-loader-wrapper" style={{ width: '28px', height: '28px', marginRight: lang === 'ar' ? '0' : '6px', marginLeft: lang === 'ar' ? '6px' : '0', flexShrink: 0 }}>
+                        <div className="search-star-loader"></div>
+                        <FourPointStar className="landing-search-sparkle" size={15} />
                       </div>
 
-                      {/* BOTTOM SEARCH INPUT BAR */}
-                      <form
-                        className={`landing-search-container ${searchBoxDrawnAttachment ? 'has-drawn-area' : ''}`}
-                        style={{
-                          margin: '0 0 4px 0',
-                          width: '100%',
-                          maxWidth: '100%',
-                          flex: '0 0 auto',
-                          height: 'auto',
-                          minHeight: searchBoxDrawnAttachment ? '88px' : '46px',
-                          borderRadius: '14px',
-                          position: 'relative',
-                          padding: searchBoxDrawnAttachment ? '8px 8px 8px 10px' : '0 6px 0 8px',
-                          boxSizing: 'border-box',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          gap: searchBoxDrawnAttachment ? '6px' : '0',
-                          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                        }}
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (aiSearchQuery.trim()) {
-                            handleUnifiedSearch({ query: aiSearchQuery });
-                            setAiSearchQuery('');
-                            setShowPlusMenu(false);
-                          }
-                        }}
-                      >
-                        {/* TOP SECTION: Attached Drawn Area Card */}
-                        {searchBoxDrawnAttachment && (
-                          <div
-                            className="search-box-drawn-area-card"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              padding: '3px 6px 3px 10px',
-                              borderRadius: '8px',
-                              background: theme === 'dark' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(29, 104, 242, 0.08)',
-                              border: theme === 'dark' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(29, 104, 242, 0.22)',
-                              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                              boxSizing: 'border-box',
-                              cursor: 'default'
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: '11.5px',
-                                fontWeight: 600,
-                                color: theme === 'dark' ? '#f1f5f9' : '#0f172a',
-                                lineHeight: 1.2,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
-                            >
-                              {getDrawnAreaLabel(searchBoxDrawnAttachment, lang)}
-                            </span>
-
-                            <button
-                              type="button"
-                              className="search-box-drawn-close-btn"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleClearDrawnArea();
-                              }}
-                              title={lang === 'ar' ? 'إلغاء تحديد النطاق' : 'Remove spatial boundary'}
-                              style={{
-                                color: theme === 'dark' ? 'rgba(255, 255, 255, 0.75)' : 'rgba(15, 23, 42, 0.65)'
-                              }}
-                            >
-                              <X size={12} strokeWidth={2.2} />
-                            </button>
-                          </div>
-                        )}
-
-                        {/* BOTTOM SECTION: Input Row with Sparkle Loader & Submit Button */}
-                        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
-                          {/* Animated AI Sparkle Orb Icon (Matching Home Page) */}
-                          <div className="search-star-loader-wrapper" style={{ width: '28px', height: '28px', marginRight: lang === 'ar' ? '0' : '4px', marginLeft: lang === 'ar' ? '4px' : '0', flexShrink: 0 }}>
-                            <div className="search-star-loader"></div>
-                            <FourPointStar className="landing-search-sparkle" size={15} />
-                          </div>
-
-                          <div className="landing-search-separator" style={{ margin: '0 6px 0 2px', height: '18px' }} />
-
-                          <input
-                            type="text"
-                            className="landing-search-input"
-                            placeholder={t.searchPlaceholder || (lang === 'ar' ? 'اسأل الخريطة الذكية أي شيء...' : 'Ask Smart Map Anything...')}
-                            value={aiSearchQuery}
-                            onChange={(e) => setAiSearchQuery(e.target.value)}
-                            onFocus={() => { if (panelHeight <= 100) setPanelHeight(200); }}
-                            style={{ fontSize: '13px', flex: 1 }}
-                          />
-                          <div className="landing-search-btn-wrapper">
-                            <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
-                              <span className="search-btn-text">{t.searchBtn || (lang === 'ar' ? 'بحث' : 'Search')}</span>
-                              <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
-                            </button>
-                          </div>
-                        </div>
-                      </form>
-                    </>
-                  )
+                      <div className="landing-search-separator" style={{ margin: '0 8px 0 4px', height: '20px' }} />
+                      <input
+                        type="text"
+                        className="landing-search-input"
+                        placeholder={t.searchPlaceholder || (lang === 'ar' ? 'اسأل الخريطة الذكية أي شيء...' : 'Ask Smart Map Anything...')}
+                        value={aiSearchQuery}
+                        onChange={(e) => setAiSearchQuery(e.target.value)}
+                        onFocus={() => { if (panelHeight <= 100) setPanelHeight(200); }}
+                        style={{ fontSize: '13px' }}
+                      />
+                      <div className="landing-search-btn-wrapper">
+                        <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
+                          <span className="search-btn-text">{t.searchBtn || (lang === 'ar' ? 'بحث' : 'Search')}</span>
+                          <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                        </button>
+                      </div>
+                    </form>
+                  </>
                 )}
               </div>
             </div>
@@ -6601,14 +7238,6 @@ function App() {
         activeBasemap={activeBasemap}
         legendItems={getDynamicLegendItems()}
         theme={theme}
-      />
-
-      {/* FLOATING FEEDBACK BUTTON */}
-      <FloatingFeedbackButton
-        onClick={() => setIsFeedbackOpen(true)}
-        lang={lang}
-        theme={theme}
-        isFeedbackOpen={isFeedbackOpen}
       />
 
       {/* FEEDBACK MODAL */}

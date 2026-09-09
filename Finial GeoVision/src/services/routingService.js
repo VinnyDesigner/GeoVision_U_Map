@@ -330,17 +330,29 @@ export function parseNavigationSteps(rawSteps, destinationTitle, lang = 'en') {
 }
 
 /**
- * Generate external navigation URL for turn-by-turn navigation handoff
+ * Generate external navigation URL for turn-by-turn navigation handoff in Google Maps
  */
 export function getStartNavigationUrl({ origin, destination, mode = 'car' }) {
-  if (!destination || typeof destination.lat !== 'number' || typeof destination.lon !== 'number') {
-    return 'https://maps.google.com';
+  if (!destination) {
+    return 'https://www.google.com/maps';
   }
-  const travelModeObj = TRAVEL_MODES.find(m => m.id === mode) || TRAVEL_MODES[0];
-  const gmapsMode = travelModeObj.gmapsMode || 'driving';
+  const destLat = parseFloat(destination.lat);
+  const destLon = parseFloat(destination.lon);
+  if (isNaN(destLat) || isNaN(destLon)) {
+    return 'https://www.google.com/maps';
+  }
 
-  if (origin && typeof origin.lat === 'number' && typeof origin.lon === 'number') {
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lon}&destination=${destination.lat},${destination.lon}&travelmode=${gmapsMode}`;
+  const travelModeObj = TRAVEL_MODES.find(m => m.id === mode) || TRAVEL_MODES[0];
+  const gmapsMode = travelModeObj.gmapsMode || (mode === 'walk' ? 'walking' : (mode === 'cycle' || mode === 'bike') ? 'bicycling' : mode === 'transit' ? 'transit' : 'driving');
+
+  let originParam = 'My+Location';
+  if (origin) {
+    const origLat = parseFloat(origin.lat);
+    const origLon = parseFloat(origin.lon);
+    if (!isNaN(origLat) && !isNaN(origLon)) {
+      originParam = `${origLat},${origLon}`;
+    }
   }
-  return `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lon}&travelmode=${gmapsMode}`;
+
+  return `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${destLat},${destLon}&travelmode=${gmapsMode}`;
 }

@@ -30,6 +30,7 @@ export default function LeafletMap({
   setActiveDrawTool,
   onDrawnAreaComplete,
   onClearDrawnArea,
+  lastDrawnQuery = null,
   restoredDrawnGeometry = null,
   activeRoute = null,
   isNavigating = false,
@@ -643,7 +644,14 @@ export default function LeafletMap({
     }
   }, [restoredDrawnGeometry]);
 
-  // Fly to active project location in Abu Dhabi
+  // Clear drawn layers when drawn area query is cleared
+  useEffect(() => {
+    if (!lastDrawnQuery && !restoredDrawnGeometry && drawnShapesGroupRef.current) {
+      drawnShapesGroupRef.current.clearLayers();
+    }
+  }, [lastDrawnQuery, restoredDrawnGeometry]);
+
+  // Handle Selected Location Focusing, Zoom To Animation & Active Pin Highlighting
   useEffect(() => {
     const map = leafletInstance.current;
     if (!map || !activeProject) return;
@@ -833,12 +841,19 @@ export default function LeafletMap({
       }).addTo(searchGroup);
 
       marker.bindTooltip(item.title, {
+        permanent: false,
         direction: 'top',
         offset: [0, -36],
         className: 'geovision-pin-tooltip'
       });
 
       markersMapRef.current[item.id] = marker;
+
+      if (isSelected) {
+        marker.openTooltip();
+      } else {
+        marker.closeTooltip();
+      }
 
       marker.on('click', (e) => {
         if (e && e.originalEvent) {
@@ -869,11 +884,32 @@ export default function LeafletMap({
     const resultsKey = displayResults.map(it => it.id).join(',');
     if (isFilteredSearch && validLatLngs.length > 0 && resultsKey !== lastFittedResultsKeyRef.current) {
       lastFittedResultsKeyRef.current = resultsKey;
-      if (validLatLngs.length > 1) {
-        const bounds = L.latLngBounds(validLatLngs);
-        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14.5, animate: true });
-      } else if (validLatLngs.length === 1) {
-        map.setView(validLatLngs[0], 14, { animate: true });
+
+      // Check if all results are already comfortably in view within the current map extent
+      const currentMapBounds = map.getBounds();
+      let isAlreadyFullyVisible = false;
+      if (currentMapBounds && typeof currentMapBounds.isValid === 'function' && currentMapBounds.isValid()) {
+        const resultsBounds = L.latLngBounds(validLatLngs);
+        const mapNorthEast = currentMapBounds.getNorthEast();
+        const mapSouthWest = currentMapBounds.getSouthWest();
+        const latBuffer = (mapNorthEast.lat - mapSouthWest.lat) * 0.08;
+        const lngBuffer = (mapNorthEast.lng - mapSouthWest.lng) * 0.08;
+        const safeMapBounds = L.latLngBounds(
+          [mapSouthWest.lat + latBuffer, mapSouthWest.lng + lngBuffer],
+          [mapNorthEast.lat - latBuffer, mapNorthEast.lng - lngBuffer]
+        );
+        isAlreadyFullyVisible = safeMapBounds.contains(resultsBounds);
+      }
+
+      if (!isAlreadyFullyVisible) {
+        if (validLatLngs.length > 1) {
+          const bounds = L.latLngBounds(validLatLngs);
+          map.fitBounds(bounds, { padding: [70, 70], maxZoom: 15, animate: true });
+        } else if (validLatLngs.length === 1) {
+          const currentZoom = map.getZoom();
+          const targetZoom = Math.max(currentZoom, 14.5);
+          map.setView(validLatLngs[0], targetZoom, { animate: true });
+        }
       }
     }
   }, [activeSearchResults]);
@@ -881,11 +917,19 @@ export default function LeafletMap({
   // Handle Selected Location Focusing, Zoom To Animation & Active Pin Highlighting
   useEffect(() => {
     const map = leafletInstance.current;
-    if (!map || !selectedLocation) return;
+    if (!map) return;
+
+    if (!selectedLocation) {
+      if (selectedGraphicsLayerRef.current) {
+        selectedGraphicsLayerRef.current.clearLayers();
+      }
+      document.querySelectorAll('.geovision-pin-marker').forEach(el => el.classList.remove('active-pin'));
+      return;
+    }
 
     // Parse selected feature coordinates
-    const lat = parseFloat(selectedLocation?.lat);
-    const lon = parseFloat(selectedLocation?.lon);
+    const lat = parseFloat(selectedLocation?.lat ?? selectedLocation?.coords?.[0]);
+    const lon = parseFloat(selectedLocation?.lon ?? selectedLocation?.coords?.[1]);
 
     if (isNaN(lat) || isNaN(lon)) return;
 
@@ -901,19 +945,78 @@ export default function LeafletMap({
     if (selectedLocation.locateTrigger) lastLocateTriggerRef.current = selectedLocation.locateTrigger;
     if (selectedLocation.zoomTrigger) lastZoomTriggerRef.current = selectedLocation.zoomTrigger;
 
-    // Only pan or zoom if it is an explicit selection or trigger change, not an unrelated re-render
+    // Pan or zoom to the selected location
     if (isNewZoomTrigger) {
-      map.flyTo([lat, lon], 16, { duration: 1.2 });
+      map.flyTo([lat, lon], 16, { duration: 1.0 });
     } else if (isNewSelection || isNewLocateTrigger) {
-      const currentZoom = Math.max(map.getZoom(), 13.5);
-      map.setView([lat, lon], currentZoom, { animate: true, duration: 0.6 });
+      const currentZoom = Math.max(map.getZoom(), 14.5);
+      map.flyTo([lat, lon], currentZoom, { duration: 0.8 });
     }
 
-    // Toggle active pin DOM class highlight
+    // Check if this location is already rendered in searchMarkersGroupRef
+    const isAlreadyInSearchResults = Array.isArray(activeSearchResults) && activeSearchResults.some(it => {
+      if (it.id && selectedLocation.id && it.id === selectedLocation.id) return true;
+      const itLat = parseFloat(it.lat ?? (Array.isArray(it.coords) ? it.coords[0] : NaN));
+      const itLon = parseFloat(it.lon ?? (Array.isArray(it.coords) ? it.coords[1] : NaN));
+      return !isNaN(itLat) && !isNaN(itLon) && Math.abs(itLat - lat) < 0.0001 && Math.abs(itLon - lon) < 0.0001;
+    });
+
+    // Only render a fallback marker in selectedGraphicsLayerRef if not already present in searchMarkersGroupRef
+    if (selectedGraphicsLayerRef.current && !isAlreadyInSearchResults) {
+      const category = selectedLocation.category || selectedLocation.subcategory || 'General';
+      const pinHtml = `
+        <div id="spatial-pin-${selectedLocation.id}" class="geovision-pin-marker active-pin selected-focus-pin">
+          ${getGisPinSvg(category, true)}
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        html: pinHtml,
+        className: 'geovision-map-div-icon',
+        iconSize: [34, 42],
+        iconAnchor: [17, 41]
+      });
+
+      const selectedMarker = L.marker([lat, lon], {
+        icon: customIcon,
+        interactive: true,
+        riseOnHover: true,
+        zIndexOffset: 9999
+      }).addTo(selectedGraphicsLayerRef.current);
+
+      const labelTitle = selectedLocation.title || selectedLocation.name || selectedLocation.arabicTitle || '';
+      if (labelTitle) {
+        selectedMarker.bindTooltip(labelTitle, {
+          permanent: true,
+          direction: 'top',
+          offset: [0, -36],
+          className: 'geovision-pin-tooltip geovision-selected-tooltip'
+        });
+      }
+    }
+
+    // Toggle active pin DOM class highlight for existing markers
     document.querySelectorAll('.geovision-pin-marker').forEach(el => el.classList.remove('active-pin'));
-    const activeEl = document.getElementById(`spatial-pin-${selectedLocation.id}`);
-    if (activeEl) {
-      activeEl.classList.add('active-pin');
+    
+    // Close tooltips on all non-selected symbology markers
+    if (markersMapRef.current) {
+      Object.entries(markersMapRef.current).forEach(([id, markerInstance]) => {
+        if (markerInstance && typeof markerInstance.closeTooltip === 'function') {
+          if (!selectedLocation || String(id) !== String(selectedLocation.id)) {
+            markerInstance.closeTooltip();
+          }
+        }
+      });
+    }
+
+    if (selectedLocation) {
+      const activeEl = document.getElementById(`spatial-pin-${selectedLocation.id}`);
+      if (activeEl) {
+        activeEl.classList.add('active-pin');
+      }
+      if (markersMapRef.current && markersMapRef.current[selectedLocation.id]) {
+        markersMapRef.current[selectedLocation.id].openTooltip();
+      }
     }
   }, [selectedLocation]);
 

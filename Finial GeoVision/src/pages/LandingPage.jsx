@@ -48,7 +48,10 @@ export default function LandingPage({
   showToast,
   toastMessage,
   setIsSidebarOpen,
-  setActiveTab
+  setActiveTab,
+  setAiPanelSubView,
+  setIsAISearchBarOpen,
+  setIsAiMinimized
 }) {
   const [chipPage, setChipPage] = useState(0);
   const [isMobileDragActive, setIsMobileDragActive] = useState(false);
@@ -377,6 +380,9 @@ export default function LandingPage({
         showToast={showToast}
         setIsSidebarOpen={setIsSidebarOpen}
         setActiveTab={setActiveTab}
+        setAiPanelSubView={setAiPanelSubView}
+        setIsAISearchBarOpen={setIsAISearchBarOpen}
+        setIsAiMinimized={setIsAiMinimized}
       />
 
       {isSignInOpen ? (
@@ -830,13 +836,6 @@ export default function LandingPage({
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Explore Map Button */}
-          <div className="landing-explore-btn-wrapper">
-            <button className="landing-explore-btn" onClick={() => handleSearchSubmit('')}>
-              {t.exploreMap} <Map size={18} />
-            </button>
           </div>
         </div>
       )}

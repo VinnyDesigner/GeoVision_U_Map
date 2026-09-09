@@ -3753,6 +3753,58 @@ export function resolveTaxonomyEntity(qLower, activeCategory = null) {
 }
 
 /**
+ * Extract all distinct taxonomy entities mentioned in a query (e.g. "schools and hospitals", "pharmacies and clinics", "المدارس والمستشفيات")
+ */
+export function resolveAllTaxonomyEntities(qLower) {
+  const q = (qLower || '').toLowerCase().trim();
+  if (!q) return [];
+
+  const matched = [];
+  for (const rule of ALL_TAXONOMY_RULES) {
+    if (matchesTaxonomyAlias(q, rule.alias)) {
+      const alreadyMatched = matched.some(m =>
+        m.category === rule.category && m.subcategory === rule.subcategory
+      );
+      if (!alreadyMatched) {
+        if (rule.isCategoryOnly) {
+          const hasSubcatForSameCat = matched.some(m => m.category === rule.category && m.subcategory !== null);
+          if (hasSubcatForSameCat && !matchesTaxonomyAlias(q, rule.alias)) {
+            continue;
+          }
+        }
+        matched.push({
+          category: rule.category,
+          subcategory: rule.subcategory,
+          aliasMatched: rule.alias,
+          isCategoryOnly: rule.isCategoryOnly,
+          labelEn: rule.subcategory || (rule.alias.endsWith('s') ? rule.alias.charAt(0).toUpperCase() + rule.alias.slice(1) : rule.category),
+          labelAr: SUBCAT_TRANSLATIONS_AR[rule.subcategory] || CAT_TRANSLATIONS_AR[rule.category] || rule.category
+        });
+      }
+    }
+  }
+
+  // Deduplicate redundant broad categories when a specific subcategory of same category matched on the same alias
+  const result = [];
+  for (const m of matched) {
+    if (m.isCategoryOnly) {
+      const hasSpecificSub = matched.some(other => other !== m && other.category === m.category && other.subcategory !== null);
+      if (hasSpecificSub) {
+        if (m.aliasMatched === m.category.toLowerCase() || m.aliasMatched === 'education' || m.aliasMatched === 'healthcare' || m.aliasMatched === 'التعليم' || m.aliasMatched === 'الرعاية الصحية') {
+          result.push(m);
+        }
+      } else {
+        result.push(m);
+      }
+    } else {
+      result.push(m);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Helper to detect unmapped/unsupported entity requests in geographic queries
  */
 export function detectUnmappedEntityQuery(qLower, targetDistrict, targetCategory, targetSubcategory) {
@@ -3996,6 +4048,7 @@ export class ConversationContext {
     };
     this.referenceLocation = null;
     this.selectedFeature = null; // { id, title, lat, lon, ... }
+    this.drawnArea = null; // { geometryType, center, radius, coordinates, bounds, label, arabicLabel }
     this.currentResults = []; // active results
     this.previousResults = []; // results from previous turn
     this.previousDataset = null;
@@ -4006,6 +4059,16 @@ export class ConversationContext {
 
   getActiveContextBadges(lang = 'en') {
     const badges = [];
+    if (this.drawnArea) {
+      const label = getDrawnAreaLabel(this.drawnArea, lang);
+      badges.push({
+        id: 'drawnArea',
+        type: 'drawnArea',
+        label: label,
+        arabicLabel: getDrawnAreaLabel(this.drawnArea, 'ar'),
+        icon: 'Pencil'
+      });
+    }
     if (this.location) {
       badges.push({
         id: 'location',
@@ -4229,11 +4292,32 @@ class SpatialAIEngine {
     this.context.selectedFeature = feature;
   }
 
+  setDrawnAreaContext(drawData) {
+    this.ensureContextInstance();
+    this.context.drawnArea = drawData;
+    this.context.spatialRelationship = 'within_drawn_area';
+    this.context.location = null;
+    this.context.locationCoordinates = null;
+  }
+
+  clearDrawnAreaContext() {
+    this.ensureContextInstance();
+    this.context.drawnArea = null;
+    if (this.context.spatialRelationship === 'within_drawn_area') {
+      this.context.spatialRelationship = null;
+    }
+  }
+
   /**
    * Remove a specific context badge and re-evaluate remaining constraints
    */
   removeContextBadge(badgeId, lang = 'en', options = {}) {
-    if (badgeId === 'sector') {
+    if (badgeId === 'drawnArea') {
+      this.context.drawnArea = null;
+      if (this.context.spatialRelationship === 'within_drawn_area') {
+        this.context.spatialRelationship = null;
+      }
+    } else if (badgeId === 'sector') {
       this.context.filters.sector = null;
     } else if (badgeId === 'ratingMin') {
       this.context.filters.ratingMin = null;
@@ -4279,6 +4363,11 @@ class SpatialAIEngine {
     const loc = this.context.locationCoordinates;
     const radius = this.context.radius;
     const filters = this.context.filters;
+    const drawnArea = this.context.drawnArea;
+
+    if (drawnArea) {
+      workingDataset = workingDataset.filter(item => isPointInDrawnArea(item, drawnArea));
+    }
 
     if (cat) {
       workingDataset = workingDataset.filter(item => {
@@ -5061,9 +5150,178 @@ class SpatialAIEngine {
     }
 
     // -------------------------------------------------------------
-    // USE CASE 3: Quantitative Count in a Specific District ("How many schools are in Khalifa City?")
+    // USE CASE 3: Quantitative Count in a Specific District or Active Drawn Area ("How many hospitals are inside this area?")
     // -------------------------------------------------------------
     if (qLower.includes('how many') || qLower.includes('count of') || qLower.includes('number of') || qLower.includes('كم عدد') || qLower.includes('كم منها')) {
+      const activeDrawnArea = this.context.drawnArea || options.drawnArea;
+      const isExplicitDrawnArea = activeDrawnArea && (
+        qLower.includes('this area') ||
+        qLower.includes('the area') ||
+        qLower.includes('this circle') ||
+        qLower.includes('this polygon') ||
+        qLower.includes('inside') ||
+        qLower.includes('within') ||
+        qLower.includes('هذه المنطقة') ||
+        qLower.includes('المنطقة المحددة') ||
+        qLower.includes('داخل') ||
+        qLower.includes('ضمن') ||
+        !Object.keys(DISTRICT_COORDINATES).some(k => qLower.includes(k))
+      );
+
+      if (activeDrawnArea && isExplicitDrawnArea) {
+        const targetEntities = resolveAllTaxonomyEntities(qLower);
+        let targetCatInfo = targetEntities.length === 1 ? targetEntities[0] : null;
+        if (targetEntities.length === 0 && this.context.dataset) {
+          targetCatInfo = {
+            category: this.context.dataset,
+            subcategory: this.context.subcategory,
+            labelEn: this.context.subcategory || this.context.dataset,
+            labelAr: SUBCAT_TRANSLATIONS_AR[this.context.subcategory] || CAT_TRANSLATIONS_AR[this.context.dataset] || this.context.dataset
+          };
+        }
+        if (targetEntities.length === 0 && !targetCatInfo) {
+          return {
+            intent: 'unsupported_layer',
+            querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
+            aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
+            results: [],
+            structuredResults: null,
+            contextBadges: this.context.getActiveContextBadges(lang),
+            chips: this.generateContextualSuggestions('unsupported_layer', lang, options, []),
+            mapAction: { type: 'fit_bounds' }
+          };
+        }
+
+        let sectorFilter = null;
+        if (qLower.includes('government') || qLower.includes('حكومي') || qLower.includes('حكومية') || (this.context.filters.sector === 'Government' && !qLower.includes('private'))) {
+          sectorFilter = 'Government';
+        } else if (qLower.includes('private') || qLower.includes('خاص') || qLower.includes('خاصة') || (this.context.filters.sector === 'Private' && !qLower.includes('government'))) {
+          sectorFilter = 'Private';
+        }
+
+        const items = GEOVISION_SPATIAL_DATASET.filter(item => {
+          if (!isPointInDrawnArea(item, activeDrawnArea)) return false;
+          let entityMatch = false;
+          if (targetEntities.length > 1) {
+            entityMatch = targetEntities.some(ent => {
+              const catMatch = isCategoryMatch(item.category, ent.category);
+              const subMatch = ent.subcategory ? isSubcategoryMatch(item.subcategory, ent.subcategory) : true;
+              return catMatch && subMatch;
+            });
+          } else if (targetCatInfo) {
+            const catMatch = isCategoryMatch(item.category, targetCatInfo.category);
+            const subMatch = targetCatInfo.subcategory ? isSubcategoryMatch(item.subcategory, targetCatInfo.subcategory) : true;
+            entityMatch = catMatch && subMatch;
+          }
+          if (!entityMatch) return false;
+
+          const sectorMatch = sectorFilter
+            ? (item.sector === sectorFilter || (item.category && item.category.toLowerCase().includes(sectorFilter.toLowerCase())) || item.type?.toLowerCase().includes(sectorFilter.toLowerCase()) || (sectorFilter === 'Government' && (item.subcategory === 'Public Schools' || item.subcategory === 'Charter Schools')) || (sectorFilter === 'Private' && item.subcategory === 'Private Schools'))
+            : true;
+          return sectorMatch;
+        });
+
+        const count = items.length;
+        const areaDesc = lang === 'ar' ? 'المنطقة المحددة' : 'the drawn area';
+        const sectorDesc = sectorFilter ? ` ${sectorFilter.toLowerCase()}` : '';
+        const sectorDescAr = sectorFilter === 'Government' ? ' الحكومية' : sectorFilter === 'Private' ? ' الخاصة' : '';
+
+        let breakdownEn = '';
+        let breakdownAr = '';
+        const catGroupCounts = {};
+
+        if (targetEntities.length > 1) {
+          targetEntities.forEach(ent => {
+            const entItems = items.filter(it => isCategoryMatch(it.category, ent.category) && (ent.subcategory ? isSubcategoryMatch(it.subcategory, ent.subcategory) : true));
+            catGroupCounts[ent.labelEn] = {
+              count: entItems.length,
+              labelAr: ent.labelAr
+            };
+          });
+          breakdownEn = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${k.toLowerCase()}`).join(', ');
+          breakdownAr = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${v.labelAr}`).join('، ');
+        } else {
+          const subCounts = {};
+          items.forEach(it => {
+            const sub = it.subcategory || it.type || targetCatInfo.labelEn;
+            subCounts[sub] = (subCounts[sub] || 0) + 1;
+          });
+          breakdownEn = Object.entries(subCounts).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
+          breakdownAr = Object.entries(subCounts).map(([k, v]) => `${v} ${SUBCAT_TRANSLATIONS_AR[k] || k}`).join('، ');
+        }
+
+        let aiResponseText = '';
+        if (targetEntities.length > 1) {
+          if (count > 0) {
+            aiResponseText = lang === 'ar'
+              ? `يوجد **${count}** من المرافق المطلوبة${sectorDescAr} داخل **${areaDesc}** (${breakdownAr}).`
+              : `There are **${count}**${sectorDesc} matching facilities inside **${areaDesc}** (${breakdownEn}).`;
+          } else {
+            aiResponseText = lang === 'ar'
+              ? `لا توجد أي مرافق مطابقة${sectorDescAr} داخل **${areaDesc}** ضمن قاعدة البيانات الحالية.`
+              : `There are **0**${sectorDesc} matching facilities inside **${areaDesc}** in the current GIS dataset.`;
+          }
+        } else {
+          if (count > 0) {
+            aiResponseText = lang === 'ar'
+              ? `يوجد **${count}** من ${targetCatInfo.labelAr}${sectorDescAr} داخل **${areaDesc}**${breakdownAr ? ` (${breakdownAr})` : ''}.`
+              : `There are **${count}**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} inside **${areaDesc}**${breakdownEn ? ` (${breakdownEn})` : ''}.`;
+          } else {
+            aiResponseText = lang === 'ar'
+              ? `لا يوجد أي ${targetCatInfo.labelAr}${sectorDescAr} مسجلة داخل **${areaDesc}** ضمن قاعدة البيانات الحالية.`
+              : `There are **0**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} inside **${areaDesc}** in the current GIS dataset.`;
+          }
+        }
+
+        this.context.dataset = targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCatInfo.category;
+        this.context.subcategory = targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetCatInfo.subcategory;
+        this.context.targetEntities = targetEntities;
+        this.context.drawnArea = activeDrawnArea;
+        if (sectorFilter) this.context.filters.sector = sectorFilter;
+        this.context.currentResults = items;
+
+        const analyticsData = targetEntities.length > 1
+          ? Object.entries(catGroupCounts).map(([k, v]) => ({
+              label: lang === 'ar' ? v.labelAr : k,
+              count: v.count,
+              percentage: count > 0 ? Math.round((v.count / count) * 100) : 0,
+              color: '#004B87'
+            }))
+          : Object.entries(items.reduce((acc, it) => {
+              const sub = it.subcategory || it.type || targetCatInfo.labelEn;
+              acc[sub] = (acc[sub] || 0) + 1;
+              return acc;
+            }, {})).map(([k, v]) => ({
+              label: lang === 'ar' ? (SUBCAT_TRANSLATIONS_AR[k] || k) : k,
+              count: v,
+              percentage: count > 0 ? Math.round((v / count) * 100) : 0,
+              color: '#004B87'
+            }));
+
+        const analyticsPayload = {
+          type: 'drawn_area_summary',
+          chartType: 'horizontal_bar',
+          title: lang === 'ar'
+            ? `إحصائية: ${targetEntities.length > 1 ? 'المرافق المطلوبة' : targetCatInfo.labelAr} في ${areaDesc}`
+            : `Analytics: ${targetEntities.length > 1 ? 'Selected Facilities' : targetCatInfo.labelEn} in ${areaDesc}`,
+          subtitle: lang === 'ar' ? `إجمالي ${count} موقعاً` : `Total ${count} facilities`,
+          district: areaDesc,
+          totalCount: count,
+          data: analyticsData
+        };
+
+        return this.buildStandardResponse({
+          workingDataset: items,
+          lang,
+          intent: 'district_count_summary',
+          aiResponseText,
+          targetCategory: targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCatInfo.category,
+          targetSubcategory: targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetCatInfo.subcategory,
+          analytics: count > 0 ? analyticsPayload : null,
+          mapAction: { type: 'fit_bounds' }
+        });
+      }
+
       let targetDistrict = null;
       for (const [key, dist] of Object.entries(DISTRICT_COORDINATES)) {
         if (qLower.includes(key)) {
@@ -5083,8 +5341,9 @@ class SpatialAIEngine {
         }
       }
 
-      let targetCatInfo = resolveCategory(qLower);
-      if (!targetCatInfo && this.context.dataset) {
+      const targetEntities = resolveAllTaxonomyEntities(qLower);
+      let targetCatInfo = targetEntities.length === 1 ? targetEntities[0] : null;
+      if (targetEntities.length === 0 && this.context.dataset) {
         targetCatInfo = {
           category: this.context.dataset,
           subcategory: this.context.subcategory,
@@ -5092,7 +5351,7 @@ class SpatialAIEngine {
           labelAr: SUBCAT_TRANSLATIONS_AR[this.context.subcategory] || CAT_TRANSLATIONS_AR[this.context.dataset] || this.context.dataset
         };
       }
-      if (!targetCatInfo) {
+      if (targetEntities.length === 0 && !targetCatInfo) {
         return {
           intent: 'unsupported_layer',
           querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
@@ -5112,53 +5371,108 @@ class SpatialAIEngine {
         sectorFilter = 'Private';
       }
 
-      const items = countCategoryInDistrict(targetCatInfo.category, targetCatInfo.subcategory, targetDistrict, sectorFilter);
+      let items = [];
+      if (targetEntities.length > 1) {
+        items = targetEntities.flatMap(ent => countCategoryInDistrict(ent.category, ent.subcategory, targetDistrict, sectorFilter));
+        // Deduplicate items by id
+        const seenIds = new Set();
+        items = items.filter(it => {
+          if (seenIds.has(it.id)) return false;
+          seenIds.add(it.id);
+          return true;
+        });
+      } else {
+        items = countCategoryInDistrict(targetCatInfo.category, targetCatInfo.subcategory, targetDistrict, sectorFilter);
+      }
+
       const count = items.length;
       const locName = targetDistrict.name;
       const locNameAr = targetDistrict.arabicName || locName;
       const sectorDesc = sectorFilter ? ` ${sectorFilter.toLowerCase()}` : '';
       const sectorDescAr = sectorFilter === 'Government' ? ' الحكومية' : sectorFilter === 'Private' ? ' الخاصة' : '';
 
-      const subCounts = {};
-      items.forEach(it => {
-        const sub = it.subcategory || it.type || targetCatInfo.labelEn;
-        subCounts[sub] = (subCounts[sub] || 0) + 1;
-      });
+      let breakdownEn = '';
+      let breakdownAr = '';
+      const catGroupCounts = {};
 
-      const breakdownEn = Object.entries(subCounts).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
-      const breakdownAr = Object.entries(subCounts).map(([k, v]) => `${v} ${SUBCAT_TRANSLATIONS_AR[k] || k}`).join('، ');
-
-      let aiResponseText = '';
-      if (count > 0) {
-        aiResponseText = lang === 'ar'
-          ? `يوجد **${count}** من ${targetCatInfo.labelAr}${sectorDescAr} في **${locNameAr}**${breakdownAr ? ` (${breakdownAr})` : ''}.`
-          : `There are **${count}**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} in **${locName}**${breakdownEn ? ` (${breakdownEn})` : ''}.`;
+      if (targetEntities.length > 1) {
+        targetEntities.forEach(ent => {
+          const entItems = items.filter(it => isCategoryMatch(it.category, ent.category) && (ent.subcategory ? isSubcategoryMatch(it.subcategory, ent.subcategory) : true));
+          catGroupCounts[ent.labelEn] = {
+            count: entItems.length,
+            labelAr: ent.labelAr
+          };
+        });
+        breakdownEn = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${k.toLowerCase()}`).join(', ');
+        breakdownAr = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${v.labelAr}`).join('، ');
       } else {
-        aiResponseText = lang === 'ar'
-          ? `لا يوجد أي ${targetCatInfo.labelAr}${sectorDescAr} مسجلة في **${locNameAr}** ضمن قاعدة البيانات الحالية.`
-          : `There are **0**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} in **${locName}** in the current GIS dataset.`;
+        const subCounts = {};
+        items.forEach(it => {
+          const sub = it.subcategory || it.type || targetCatInfo.labelEn;
+          subCounts[sub] = (subCounts[sub] || 0) + 1;
+        });
+        breakdownEn = Object.entries(subCounts).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
+        breakdownAr = Object.entries(subCounts).map(([k, v]) => `${v} ${SUBCAT_TRANSLATIONS_AR[k] || k}`).join('، ');
       }
 
-      this.context.dataset = targetCatInfo.category;
-      this.context.subcategory = targetCatInfo.subcategory;
+      let aiResponseText = '';
+      if (targetEntities.length > 1) {
+        if (count > 0) {
+          aiResponseText = lang === 'ar'
+            ? `يوجد **${count}** من المرافق المطلوبة${sectorDescAr} في **${locNameAr}** (${breakdownAr}).`
+            : `There are **${count}**${sectorDesc} matching facilities in **${locName}** (${breakdownEn}).`;
+        } else {
+          aiResponseText = lang === 'ar'
+            ? `لا توجد أي مرافق مطابقة${sectorDescAr} في **${locNameAr}** ضمن قاعدة البيانات الحالية.`
+            : `There are **0**${sectorDesc} matching facilities in **${locName}** in the current GIS dataset.`;
+        }
+      } else {
+        if (count > 0) {
+          aiResponseText = lang === 'ar'
+            ? `يوجد **${count}** من ${targetCatInfo.labelAr}${sectorDescAr} في **${locNameAr}**${breakdownAr ? ` (${breakdownAr})` : ''}.`
+            : `There are **${count}**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} in **${locName}**${breakdownEn ? ` (${breakdownEn})` : ''}.`;
+        } else {
+          aiResponseText = lang === 'ar'
+            ? `لا يوجد أي ${targetCatInfo.labelAr}${sectorDescAr} مسجلة في **${locNameAr}** ضمن قاعدة البيانات الحالية.`
+            : `There are **0**${sectorDesc} ${targetCatInfo.labelEn.toLowerCase()} in **${locName}** in the current GIS dataset.`;
+        }
+      }
+
+      this.context.dataset = targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCatInfo.category;
+      this.context.subcategory = targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetCatInfo.subcategory;
       this.context.location = locName;
       this.context.locationCoordinates = targetDistrict;
       if (sectorFilter) this.context.filters.sector = sectorFilter;
       this.context.currentResults = items;
 
+      const analyticsData = targetEntities.length > 1
+        ? Object.entries(catGroupCounts).map(([k, v]) => ({
+            label: lang === 'ar' ? v.labelAr : k,
+            count: v.count,
+            percentage: count > 0 ? Math.round((v.count / count) * 100) : 0,
+            color: '#004B87'
+          }))
+        : Object.entries(items.reduce((acc, it) => {
+            const sub = it.subcategory || it.type || targetCatInfo.labelEn;
+            acc[sub] = (acc[sub] || 0) + 1;
+            return acc;
+          }, {})).map(([k, v]) => ({
+            label: lang === 'ar' ? (SUBCAT_TRANSLATIONS_AR[k] || k) : k,
+            count: v,
+            percentage: count > 0 ? Math.round((v / count) * 100) : 0,
+            color: '#004B87'
+          }));
+
       const analyticsPayload = {
         type: 'district_summary',
         chartType: 'horizontal_bar',
-        title: lang === 'ar' ? `إحصائية: ${targetCatInfo.labelAr} في ${locNameAr}` : `Analytics: ${targetCatInfo.labelEn} in ${locName}`,
+        title: lang === 'ar'
+          ? `إحصائية: ${targetEntities.length > 1 ? 'المرافق المطلوبة' : targetCatInfo.labelAr} في ${locNameAr}`
+          : `Analytics: ${targetEntities.length > 1 ? 'Selected Facilities' : targetCatInfo.labelEn} in ${locName}`,
         subtitle: lang === 'ar' ? `إجمالي ${count} موقعاً` : `Total ${count} facilities`,
         district: locName,
         totalCount: count,
-        data: Object.entries(subCounts).map(([k, v]) => ({
-          label: lang === 'ar' ? (SUBCAT_TRANSLATIONS_AR[k] || k) : k,
-          count: v,
-          percentage: count > 0 ? Math.round((v / count) * 100) : 0,
-          color: '#004B87'
-        }))
+        data: analyticsData
       };
 
       return this.buildStandardResponse({
@@ -5166,11 +5480,11 @@ class SpatialAIEngine {
         lang,
         intent: 'district_count_summary',
         aiResponseText,
+        targetCategory: targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCatInfo.category,
+        targetSubcategory: targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetCatInfo.subcategory,
         targetDistrict,
-        targetCategory: targetCatInfo.category,
-        targetSubcategory: targetCatInfo.subcategory,
-        analytics: analyticsPayload,
-        mapAction: { type: 'fly_to', center: [targetDistrict.lat, targetDistrict.lon], zoom: 14 }
+        analytics: count > 0 ? analyticsPayload : null,
+        mapAction: { type: 'fit_bounds' }
       });
     }
 
@@ -5533,6 +5847,20 @@ class SpatialAIEngine {
     const { activeCat, activeSub, activeLoc } = contextInfo;
     const userLoc = options.userLocation || { lat: 24.4539, lon: 54.3773 };
     let ranked = [...workingSet];
+
+    // If query targets a specific category or subcategory, refine ranked subset to that entity first
+    const specificEntity = resolveTaxonomyEntity(qLower);
+    if (specificEntity) {
+      const filteredSubset = ranked.filter(item => {
+        const catMatch = isCategoryMatch(item.category, specificEntity.category);
+        const subMatch = specificEntity.subcategory ? isSubcategoryMatch(item.subcategory, specificEntity.subcategory) : true;
+        return catMatch && subMatch;
+      });
+      if (filteredSubset.length > 0) {
+        ranked = filteredSubset;
+      }
+    }
+
     let rankType = null;
     let rankSummary = '';
     let topNLimit = null;
@@ -5767,8 +6095,9 @@ class SpatialAIEngine {
       nounAr = SUBCAT_TRANSLATIONS_AR[targetSub];
     }
 
-    const locEn = this.context.location || activeLoc?.name || 'the area';
-    const locAr = this.context.locationCoordinates?.arabicName || this.context.location || activeLoc?.arabicName || 'المنطقة';
+    const isDrawnAreaContext = Boolean(this.context.drawnArea || options.drawnArea);
+    const locEn = isDrawnAreaContext ? 'the drawn area' : (this.context.location || activeLoc?.name || 'the area');
+    const locAr = isDrawnAreaContext ? 'المنطقة المحددة' : (this.context.locationCoordinates?.arabicName || this.context.location || activeLoc?.arabicName || 'المنطقة');
 
     let aiResponseText = '';
 
@@ -5977,8 +6306,8 @@ class SpatialAIEngine {
         return {
           intent: 'unsupported_capability',
           querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
-          aiMessageText: cleanMarkdownText(lang === 'ar' ? GENERIC_ERROR_MESSAGE_AR : GENERIC_ERROR_MESSAGE_EN),
-          results: [],
+          aiMessageText: cleanMarkdownText(aiMessageText),
+          results: hasContextResults ? this.context.currentResults : [],
           structuredResults: null,
           contextBadges: this.context.getActiveContextBadges(lang),
           chips,
@@ -7197,6 +7526,11 @@ class SpatialAIEngine {
       this.context.selectedFeature = options.selectedLocation;
     }
 
+    if (options?.drawnArea && !this.context.drawnArea) {
+      this.setDrawnAreaContext(options.drawnArea);
+    }
+    const activeDrawnArea = this.context.drawnArea || options?.drawnArea || null;
+
     // 0.0 CHECK FOR NATURAL LANGUAGE APPLICATION CONTROL COMMANDS (Theme, Language, Basemap, Navigation, Layers, Legend, Locate, Draw, Print)
     const appControlRes = this.evaluateApplicationControlCommand(q, lang, options);
     if (appControlRes) {
@@ -7604,9 +7938,10 @@ class SpatialAIEngine {
       }
     }
 
-    const radMatchProgressive = qLower.match(/within\s+([\d.]+)\s*km/i) || qLower.match(/ضمن\s*([\d.]+)\s*كم/i);
+    const isMultiCategoryQuery = resolveAllTaxonomyEntities(qLower).length > 1;
+    const radMatchProgressive = qLower.match(/(?:within|in|radius|distance|ضمن|نطاق)\s*([\d.]+)\s*(?:km|kilo|كم)/i);
 
-    const isProgressiveFollowUp = !isCategorySwitch && !isNearMeIntent && (
+    const isProgressiveFollowUp = !isMultiCategoryQuery && !isCategorySwitch && !isNearMeIntent && (
       refinedSubcat !== null ||
       radMatchProgressive !== null ||
       qLower.startsWith('only ') ||
@@ -7690,7 +8025,7 @@ class SpatialAIEngine {
       qLower.includes('جيد جدا') ||
       qLower.includes('انبعاثات'));
 
-    if (isProgressiveFollowUp && (this.context.dataset || this.context.location)) {
+    if (isProgressiveFollowUp && (this.context.dataset || this.context.location || this.context.drawnArea)) {
       if (refinedSubcat) {
         this.context.subcategory = refinedSubcat;
       }
@@ -7709,12 +8044,16 @@ class SpatialAIEngine {
 
       // Start from all items in this location / category
       let candidates = GEOVISION_SPATIAL_DATASET.filter(item => {
-        const catMatch = isCategoryMatch(item.category, activeCat);
+        const catMatch = activeCat ? isCategoryMatch(item.category, activeCat) : true;
         const subMatch = activeSub ? isSubcategoryMatch(item.subcategory, activeSub) : true;
         return catMatch && subMatch;
       });
 
-      if (activeLoc) {
+      if (this.context.drawnArea) {
+        candidates = candidates.filter(item => isPointInDrawnArea(item, this.context.drawnArea));
+      }
+
+      if (activeLoc && !this.context.drawnArea) {
         candidates = candidates.map(item => {
           const dist = calculateDistanceKm(activeLoc.lat, activeLoc.lon, item.lat, item.lon);
           const nameMatch = activeLoc.isUserLocation ? false : (
@@ -7780,13 +8119,19 @@ class SpatialAIEngine {
 
       let aiResponseText = '';
       if (lang === 'ar') {
-        if (this.context.radius && (activeLoc?.isUserLocation || this.context.location === 'Current Location' || this.context.location === 'موقعك الحالي')) {
+        if (this.context.drawnArea) {
+          const areaLabelAr = getDrawnAreaLabel(this.context.drawnArea, 'ar');
+          aiResponseText = `تم تصفية النتائج: تم العثور على ${count} من ${catDisplayNameAr}${filterSummaryAr} داخل ${areaLabelAr}.`;
+        } else if (this.context.radius && (activeLoc?.isUserLocation || this.context.location === 'Current Location' || this.context.location === 'موقعك الحالي')) {
           aiResponseText = `تم تصفية النتائج: تم العثور على ${count} من ${catDisplayNameAr}${filterSummaryAr} ضمن نطاق ${this.context.radius} كم من موقعك الحالي.`;
         } else {
           aiResponseText = `تم تصفية النتائج: تم العثور على ${count} من ${catDisplayNameAr}${filterSummaryAr}${locStrAr}.`;
         }
       } else {
-        if (this.context.radius && (activeLoc?.isUserLocation || this.context.location === 'Current Location')) {
+        if (this.context.drawnArea) {
+          const areaLabelEn = getDrawnAreaLabel(this.context.drawnArea, 'en');
+          aiResponseText = `Refined results based on context: found ${count}${filterSummary} ${catDisplayName} inside ${areaLabelEn}.`;
+        } else if (this.context.radius && (activeLoc?.isUserLocation || this.context.location === 'Current Location')) {
           aiResponseText = `Refined results based on context: found ${count}${filterSummary} ${catDisplayName} within ${this.context.radius} km of your location.`;
         } else {
           aiResponseText = `Refined results based on context: found ${count}${filterSummary} ${catDisplayName}${locStr}.`;
@@ -7935,21 +8280,26 @@ class SpatialAIEngine {
 
     let targetCategory = null;
     let targetSubcategory = null;
+    const targetEntities = resolveAllTaxonomyEntities(qLower);
 
-    // Entity & Category Extraction using Global Taxonomy
-    const taxonomyMatch = resolveTaxonomyEntity(qLower);
-    if (taxonomyMatch) {
-      targetCategory = taxonomyMatch.category;
-      targetSubcategory = taxonomyMatch.subcategory;
+    if (targetEntities.length === 1) {
+      targetCategory = targetEntities[0].category;
+      targetSubcategory = targetEntities[0].subcategory;
+    } else if (targetEntities.length === 0) {
+      const taxonomyMatch = resolveTaxonomyEntity(qLower);
+      if (taxonomyMatch) {
+        targetCategory = taxonomyMatch.category;
+        targetSubcategory = taxonomyMatch.subcategory;
+      }
     }
 
-    if (!targetCategory && categoryFilter && categoryFilter !== 'all') {
+    if (!targetCategory && targetEntities.length === 0 && categoryFilter && categoryFilter !== 'all') {
       targetCategory = categoryFilter;
     }
 
     // Context Isolation & Category Switch Rule:
-    // If query specifies a new category differing from active dataset, clear old context filters cleanly.
-    if (targetCategory && this.context.dataset && targetCategory.toLowerCase() !== this.context.dataset.toLowerCase()) {
+    if (targetEntities.length > 1) {
+      const retainedDrawnArea = this.context.drawnArea;
       this.context.filters = {
         sector: null,
         ratingMin: null,
@@ -7963,24 +8313,55 @@ class SpatialAIEngine {
       };
       this.context.referenceDataset = null;
       this.context.referenceFeatures = [];
-      this.context.spatialRelationship = null;
+      this.context.spatialRelationship = retainedDrawnArea ? 'within_drawn_area' : null;
+      this.context.selectedFeature = null;
+      this.context.radius = searchRadiusKm;
+      this.context.dataset = targetEntities.map(e => e.category).join(', ');
+      this.context.subcategory = targetEntities.map(e => e.subcategory || e.category).join(', ');
+      this.context.targetEntities = targetEntities;
+      this.context.drawnArea = retainedDrawnArea;
+      if (targetDistrict) {
+        this.context.location = targetDistrict.name;
+        this.context.locationCoordinates = targetDistrict;
+      }
+    } else if (targetCategory && this.context.dataset && targetCategory.toLowerCase() !== this.context.dataset.toLowerCase()) {
+      const retainedDrawnArea = this.context.drawnArea;
+      this.context.filters = {
+        sector: null,
+        ratingMin: null,
+        open247: false,
+        curriculum: null,
+        maxTuitionFee: null,
+        feeType: null,
+        minBeds: null,
+        irtqaaRating: null,
+        maxEmissions: null
+      };
+      this.context.referenceDataset = null;
+      this.context.referenceFeatures = [];
+      this.context.spatialRelationship = retainedDrawnArea ? 'within_drawn_area' : null;
       this.context.selectedFeature = null;
       this.context.radius = searchRadiusKm;
       this.context.dataset = targetCategory;
       this.context.subcategory = targetSubcategory;
+      this.context.targetEntities = targetEntities;
+      this.context.drawnArea = retainedDrawnArea;
       if (targetDistrict) {
         this.context.location = targetDistrict.name;
         this.context.locationCoordinates = targetDistrict;
-      } else if (this.context.locationCoordinates) {
+      } else if (this.context.locationCoordinates && !retainedDrawnArea) {
         targetDistrict = this.context.locationCoordinates;
       }
     } else if (targetDistrict && targetCategory) {
+      const retainedDrawnArea = this.context.drawnArea;
       this.context.reset();
       this.context.location = targetDistrict.name;
       this.context.locationCoordinates = targetDistrict;
       this.context.dataset = targetCategory;
       this.context.subcategory = targetSubcategory;
+      this.context.targetEntities = targetEntities;
       this.context.radius = searchRadiusKm;
+      this.context.drawnArea = retainedDrawnArea;
     } else if (targetDistrict && !targetCategory) {
       this.context.location = targetDistrict.name;
       this.context.locationCoordinates = targetDistrict;
@@ -7988,8 +8369,9 @@ class SpatialAIEngine {
     } else if (!targetDistrict && targetCategory) {
       this.context.dataset = targetCategory;
       this.context.subcategory = targetSubcategory;
+      this.context.targetEntities = targetEntities;
       this.context.radius = searchRadiusKm;
-      if (this.context.locationCoordinates) {
+      if (this.context.locationCoordinates && !this.context.drawnArea) {
         targetDistrict = this.context.locationCoordinates;
       }
     }
@@ -7999,7 +8381,15 @@ class SpatialAIEngine {
     Object.assign(this.context.filters, initialAttrFilters);
 
     // Apply Category Filter Strictly
-    if (targetCategory && targetCategory !== 'all') {
+    if (targetEntities.length > 1) {
+      workingDataset = workingDataset.filter(item => {
+        return targetEntities.some(ent => {
+          const catMatch = isCategoryMatch(item.category, ent.category);
+          const subMatch = ent.subcategory ? isSubcategoryMatch(item.subcategory, ent.subcategory) : true;
+          return catMatch && subMatch;
+        });
+      });
+    } else if (targetCategory && targetCategory !== 'all') {
       workingDataset = workingDataset.filter(item => {
         const catMatch = isCategoryMatch(item.category, targetCategory);
         const subMatch = targetSubcategory ? isSubcategoryMatch(item.subcategory, targetSubcategory) : true;
@@ -8010,8 +8400,10 @@ class SpatialAIEngine {
     // Apply Structured Attribute Filters
     workingDataset = applyItemAttributeFilters(workingDataset, this.context.filters);
 
-    // Apply District Filter or Global User Location Proximity Sorting
-    if (targetDistrict) {
+    // Apply Drawn Area Filter or District Filter or Global User Location Proximity Sorting
+    if (activeDrawnArea && !targetDistrict) {
+      workingDataset = workingDataset.filter(item => isPointInDrawnArea(item, activeDrawnArea));
+    } else if (targetDistrict) {
       workingDataset = workingDataset.map(item => {
         const dist = calculateDistanceKm(targetDistrict.lat, targetDistrict.lon, item.lat, item.lon);
         const nameMatch = targetDistrict.isUserLocation ? false : (
@@ -8043,7 +8435,7 @@ class SpatialAIEngine {
       }
     }
 
-    // Check for direct ranking in general queries (e.g. "Which school has the highest rating in Khalifa City?")
+    // Check for direct ranking in general queries
     const rankingResult = this.evaluateRankingQuery(qLower, workingDataset, { activeCat: targetCategory, activeSub: targetSubcategory, activeLoc: targetDistrict }, lang, options);
     if (rankingResult) {
       this.context.currentResults = rankingResult.ranked;
@@ -8056,8 +8448,8 @@ class SpatialAIEngine {
         intent: 'ranking_superlative',
         aiResponseText: cleanMarkdownText(rankingResult.aiResponseText),
         targetDistrict,
-        targetCategory,
-        targetSubcategory,
+        targetCategory: targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCategory,
+        targetSubcategory: targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetSubcategory,
         searchRadiusKm,
         isRanked: true,
         rankSummary: rankingResult.rankSummary,
@@ -8076,18 +8468,26 @@ class SpatialAIEngine {
       qLower === 'explore' ||
       qLower === 'browse' ||
       qLower === 'everything' ||
+      qLower === 'show all facilities in this area' ||
+      qLower === 'show all in this area' ||
+      qLower === 'all facilities in this area' ||
+      qLower === 'places inside this area' ||
+      qLower === 'show all facilities' ||
       qLower === 'كل' ||
       qLower === 'عرض الكل' ||
       qLower === 'المرافق' ||
       qLower === 'جميع المرافق' ||
       qLower === 'كافة المواقع' ||
-      qLower === 'المواقع';
+      qLower === 'المواقع' ||
+      qLower.includes('show all facilities in this area') ||
+      qLower.includes('all facilities in this area') ||
+      qLower.includes('جميع المرافق في هذه المنطقة') ||
+      qLower.includes('عرض كافة المرافق داخل المنطقة');
 
-    // Check if query contains an unmapped/unsupported entity in a geographic location (e.g. "Find pizza restaurants in Al Ain", "Cinema in Khalifa City")
-    if (!targetCategory && !targetSubcategory && targetDistrict && !isExplicitBrowseAll) {
+    // Check if query contains an unmapped/unsupported entity in a geographic location
+    if (!targetCategory && !targetSubcategory && targetEntities.length === 0 && targetDistrict && !isExplicitBrowseAll) {
       const unmappedEntity = detectUnmappedEntityQuery(qLower, targetDistrict, targetCategory, targetSubcategory);
       if (unmappedEntity) {
-        // Check if any POI in workingDataset or whole dataset has exact text match in title
         const textMatchedPOI = workingDataset.some(item =>
           (item.title || '').toLowerCase().includes(unmappedEntity.toLowerCase()) ||
           (item.arabicTitle || '').includes(unmappedEntity)
@@ -8111,7 +8511,9 @@ class SpatialAIEngine {
     const hasRecognizedEntity =
       Boolean(targetCategory) ||
       Boolean(targetSubcategory) ||
+      Boolean(targetEntities && targetEntities.length > 0) ||
       Boolean(targetDistrict) ||
+      Boolean(activeDrawnArea) ||
       Boolean(categoryFilter && categoryFilter !== 'all') ||
       Boolean(this.context.dataset);
 
@@ -8147,8 +8549,42 @@ class SpatialAIEngine {
         chips: this.generateContextualSuggestions('zero_results', lang, options, []),
         mapAction: { type: 'fit_bounds' }
       };
+    } else if (targetEntities.length > 1) {
+      const catGroupCounts = {};
+      targetEntities.forEach(ent => {
+        const entItems = workingDataset.filter(it => isCategoryMatch(it.category, ent.category) && (ent.subcategory ? isSubcategoryMatch(it.subcategory, ent.subcategory) : true));
+        catGroupCounts[ent.labelEn] = {
+          count: entItems.length,
+          labelAr: ent.labelAr
+        };
+      });
+      const breakdownEn = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${k.toLowerCase()}`).join(', ');
+      const breakdownAr = Object.entries(catGroupCounts).map(([k, v]) => `${v.count} ${v.labelAr}`).join('، ');
+
+      if (lang === 'ar') {
+        if (activeDrawnArea) {
+          const areaLabelAr = getDrawnAreaLabel(activeDrawnArea, 'ar');
+          aiResponseText = `تم العثور على ${count} من المرافق المطابقة (${breakdownAr}) داخل ${areaLabelAr} وعرضها على الخريطة.`;
+        } else if (targetDistrict) {
+          aiResponseText = `تم العثور على ${count} من المرافق المطابقة (${breakdownAr}) في ${targetDistrict.arabicName || targetDistrict.name} وعرضها على الخريطة.`;
+        } else {
+          aiResponseText = `تم العثور على ${count} من المرافق المطابقة (${breakdownAr}) في دولة الإمارات.`;
+        }
+      } else {
+        if (activeDrawnArea) {
+          const areaLabelEn = getDrawnAreaLabel(activeDrawnArea, 'en');
+          aiResponseText = `I found ${count} matching facilities (${breakdownEn}) inside ${areaLabelEn} and displayed them on the map.`;
+        } else if (targetDistrict) {
+          aiResponseText = `I found ${count} matching facilities (${breakdownEn}) in ${targetDistrict.name} and displayed them on the map.`;
+        } else {
+          aiResponseText = `I found ${count} matching facilities (${breakdownEn}) across Abu Dhabi & UAE.`;
+        }
+      }
     } else if (lang === 'ar') {
-      if (searchRadiusKm) {
+      if (activeDrawnArea) {
+        const areaLabelAr = getDrawnAreaLabel(activeDrawnArea, 'ar');
+        aiResponseText = `تم العثور على ${count} من ${catAr} داخل ${areaLabelAr} وعرضها على الخريطة.`;
+      } else if (searchRadiusKm) {
         aiResponseText = `تم العثور على ${count} من ${catAr} ضمن نطاق ${searchRadiusKm} كم من ${targetDistrict?.arabicName || 'موقعك'} وعرضها على الخريطة.`;
       } else if (targetDistrict) {
         aiResponseText = `تم العثور على ${count} من ${catAr} في ${targetDistrict.arabicName || targetDistrict.name} وعرضها على الخريطة.`;
@@ -8156,7 +8592,10 @@ class SpatialAIEngine {
         aiResponseText = `تم العثور على ${count} موقعاً ضمن فئة ${catAr} في دولة الإمارات.`;
       }
     } else {
-      if (searchRadiusKm) {
+      if (activeDrawnArea) {
+        const areaLabelEn = getDrawnAreaLabel(activeDrawnArea, 'en');
+        aiResponseText = `I found ${count} ${catEn} inside ${areaLabelEn} and displayed them on the map.`;
+      } else if (searchRadiusKm) {
         aiResponseText = `I found ${count} ${catEn} within ${searchRadiusKm} km of ${targetDistrict?.name || 'your location'} and displayed them on the map.`;
       } else if (targetDistrict) {
         aiResponseText = `I found ${count} ${catEn} in ${targetDistrict.name} and displayed them on the map.`;
@@ -8170,11 +8609,11 @@ class SpatialAIEngine {
     return this.buildStandardResponse({
       workingDataset,
       lang,
-      intent: (searchRadiusKm || isNearMeIntent) ? 'radius_search' : (targetDistrict ? 'spatial_filter' : 'search'),
+      intent: (searchRadiusKm || isNearMeIntent) ? 'radius_search' : (targetDistrict ? 'spatial_filter' : (activeDrawnArea ? 'spatial_filter' : 'search')),
       aiResponseText,
       targetDistrict,
-      targetCategory,
-      targetSubcategory,
+      targetCategory: targetEntities.length > 1 ? targetEntities.map(e => e.category).join(', ') : targetCategory,
+      targetSubcategory: targetEntities.length > 1 ? targetEntities.map(e => e.subcategory || e.category).join(', ') : targetSubcategory,
       searchRadiusKm
     });
   }
@@ -8928,6 +9367,57 @@ export function isPointInBounds(point, bounds) {
     return lat >= south && lat <= north && lon >= west && lon <= east;
   }
   return false;
+}
+
+/**
+ * Check if a point lies inside any drawn geometric area (circle, polygon, rectangle, square, point, line)
+ */
+export function isPointInDrawnArea(point, drawnArea) {
+  if (!point || !drawnArea) return false;
+  const { geometryType, center, radius, coordinates, bounds } = drawnArea;
+
+  if (geometryType === 'circle') {
+    return isPointInCircle(point, center, radius);
+  }
+  if (geometryType === 'polygon') {
+    return isPointInPolygon(point, coordinates);
+  }
+  if (geometryType === 'rectangle' || geometryType === 'square') {
+    if (bounds) return isPointInBounds(point, bounds);
+    if (coordinates && coordinates.length >= 4) return isPointInPolygon(point, coordinates);
+  }
+  if (geometryType === 'click' || geometryType === 'point') {
+    return isPointInCircle(point, center || (coordinates ? coordinates[0] : null), 2500);
+  }
+  if (geometryType === 'line') {
+    if (!coordinates || coordinates.length < 2) return false;
+    return coordinates.some(pt => isPointInCircle(point, pt, 1200));
+  }
+  return false;
+}
+
+/**
+ * Format a user-friendly label for a drawn area geometry
+ */
+export function getDrawnAreaLabel(drawnArea, lang = 'en') {
+  if (!drawnArea) return lang === 'ar' ? 'منطقة مرسومة' : 'Drawn Area';
+  const { geometryType, radius, coordinates } = drawnArea;
+  if (geometryType === 'circle' && radius) {
+    if (lang === 'ar') {
+      const rStrAr = radius >= 1000 ? `${(radius / 1000).toFixed(1)} كم` : `${Math.round(radius)} م`;
+      return `المنطقة المرسومة · نصف القطر ${rStrAr}`;
+    }
+    const rStr = radius >= 1000 ? `${(radius / 1000).toFixed(1)} km` : `${Math.round(radius)} m`;
+    return `Drawn Area · ${rStr} radius`;
+  }
+  if (geometryType === 'polygon' && coordinates) {
+    const pts = Array.isArray(coordinates) ? coordinates.length : 0;
+    return lang === 'ar' ? `مضلع مرسوم · ${pts} نقاط` : `Drawn Polygon · ${pts} vertices`;
+  }
+  if (geometryType === 'rectangle' || geometryType === 'square') {
+    return lang === 'ar' ? 'منطقة مرسومة · مستطيل الإحاطة' : 'Drawn Area · Bounding Box';
+  }
+  return lang === 'ar' ? 'منطقة مرسومة' : 'Drawn Area';
 }
 
 /**
