@@ -18,7 +18,7 @@ import {
   Download
 } from 'lucide-react';
 import CommonHeader from '../components/CommonHeader.jsx';
-import aboutHeroBg from '../assets/about_hero_bg.png';
+import helpHeroBg from '../assets/help_support_hero_bg.png';
 import aboutHeroBgDark from '../assets/about_hero_bg_dark.png';
 import './HelpSupportPage.css';
 
@@ -526,8 +526,8 @@ export default function HelpSupportPage({
       <section className="help-hero-section">
         <div className="help-hero-bg-wrapper">
           <img
-            src={theme === 'dark' ? aboutHeroBgDark : aboutHeroBg}
-            alt="Topographic Wave Background"
+            src={helpHeroBg}
+            alt="GeoVision Help & Support Abu Dhabi Skyline Background"
             className="help-hero-bg-img"
           />
         </div>
