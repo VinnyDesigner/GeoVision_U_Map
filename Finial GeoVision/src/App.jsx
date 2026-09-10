@@ -1695,48 +1695,6 @@ function App() {
     setAiState('panel');
     if (panelHeight <= 100) setPanelHeight(280);
 
-    // Continue conversation if in the middle of a chat; do NOT reset or start a new chat!
-    setChatMessages(prev => {
-      if (!prev || prev.length === 0 || (prev.length === 1 && prev[0].id === 'welcome-init')) {
-        return [
-          {
-            id: 'drawn-awaiting-query',
-            sender: 'ai',
-            text: lang === 'ar'
-              ? `تم تحديد ${getDrawnAreaLabel(drawData, lang)} كحد جغرافي.\n\nاكتب استفسارك في الأسفل واضغط **Enter** لتنفيذ البحث داخل هذه المنطقة.`
-              : `Spatial boundary set: **${getDrawnAreaLabel(drawData, 'en')}**.\n\nType your query in the search bar below and press **Enter** to search within this area.`,
-            chips: [
-              { label: lang === 'ar' ? 'جميع المعالم' : 'All Features', query: 'All places' },
-              { label: lang === 'ar' ? 'المراكز الحكومية' : 'Government Facilities', query: 'Government Facilities' },
-              { label: lang === 'ar' ? 'مرافق النقل' : 'Transport Facilities', query: 'Transport Facilities' },
-              { label: lang === 'ar' ? 'المرافق البيئية' : 'Environmental Facilities', query: 'Environmental Facilities' },
-              { label: lang === 'ar' ? 'المنشآت الصناعية' : 'Industrial Facilities', query: 'Industrial Facilities' },
-              { label: lang === 'ar' ? 'المباني التجارية' : 'Commercial Buildings', query: 'Commercial Buildings' },
-              { label: lang === 'ar' ? 'الحدائق' : 'Parks', query: 'Parks' }
-            ]
-          }
-        ];
-      }
-
-      // Middle of an active chat: PRESERVE entire existing conversation history!
-      return [
-        ...prev,
-        {
-          id: `drawn-boundary-update-${Date.now()}`,
-          sender: 'ai',
-          text: lang === 'ar'
-            ? `تم تحديث النطاق الجغرافي: **${getDrawnAreaLabel(drawData, lang)}**.\n\nيمكنك مواصلة المحادثة والاستفسار عن المعالم داخل هذه المنطقة.`
-            : `Active spatial boundary set to **${getDrawnAreaLabel(drawData, 'en')}**.\n\nYou can continue your conversation and ask queries for this area.`,
-          chips: [
-            { label: lang === 'ar' ? 'جميع المعالم في المنطقة' : 'All Features in this area', query: 'All places in this area' },
-            { label: lang === 'ar' ? 'المراكز الحكومية في المنطقة' : 'Government Facilities in this area', query: 'Show government facilities in this area' },
-            { label: lang === 'ar' ? 'المباني التجارية في المنطقة' : 'Commercial Buildings in this area', query: 'Show commercial buildings in this area' },
-            { label: lang === 'ar' ? 'الحدائق في المنطقة' : 'Parks in this area', query: 'Show parks in this area' }
-          ]
-        }
-      ];
-    });
-
     showToast(lang === 'ar' ? 'تم تحديد النطاق كحد جغرافي. اكتب استفسارك واضغط Enter' : 'Drawn area set as spatial boundary. Type your query and press Enter');
   };
 
@@ -6535,9 +6493,69 @@ function App() {
 
                                 <div className={`chat-bubble ${msg.sender}`}>
                                    {msg.sender === 'user' ? (
+                                   editingMessageIdx === idx ? (
+                                     <div
+                                       className="chat-bubble-content user-query-edit-container"
+                                       style={{
+                                         display: 'flex',
+                                         flexDirection: 'column',
+                                         gap: '8px'
+                                       }}
+                                     >
+                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                         <div className="user-query-edit-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                           <Pencil size={13} strokeWidth={2.4} />
+                                           <span>{t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}</span>
+                                         </div>
+                                         <span className="user-query-edit-hint">Enter ↵ to run</span>
+                                       </div>
+                                       <textarea
+                                         className="user-query-edit-textarea"
+                                         value={editingMessageText}
+                                         onChange={(e) => setEditingMessageText(e.target.value)}
+                                         onKeyDown={(e) => {
+                                           if (e.key === 'Enter' && !e.shiftKey) {
+                                             e.preventDefault();
+                                             if (editingMessageText.trim()) {
+                                               handleRunEditedQuery(editingMessageText, idx);
+                                             }
+                                           } else if (e.key === 'Escape') {
+                                             setEditingMessageIdx(null);
+                                           }
+                                         }}
+                                         autoFocus
+                                         rows={2}
+                                         placeholder={t.editingQueryPlaceholder || (lang === 'ar' ? 'تعديل نص الاستعلام...' : 'Edit search query...')}
+                                       />
+                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', marginTop: '2px' }}>
+                                         <button
+                                           type="button"
+                                           className="user-query-cancel-btn"
+                                           onClick={() => setEditingMessageIdx(null)}
+                                         >
+                                           <X size={12} strokeWidth={2.4} />
+                                           <span>{t.cancel || (lang === 'ar' ? 'إلغاء' : 'Cancel')}</span>
+                                         </button>
+                                         <button
+                                           type="button"
+                                           className="user-query-run-btn"
+                                           disabled={!editingMessageText.trim()}
+                                           onClick={() => {
+                                             if (editingMessageText.trim()) {
+                                               handleRunEditedQuery(editingMessageText, idx);
+                                             }
+                                           }}
+                                         >
+                                           <Send size={12} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
+                                           <span>{t.runQuery || (lang === 'ar' ? 'تشغيل الاستعلام' : 'Run Query')}</span>
+                                         </button>
+                                       </div>
+                                     </div>
+                                   ) : (
                                      <div
                                        className="chat-bubble-content user-bubble-interactive"
-                                       onClick={() => {
+                                       onClick={(e) => {
+                                         if (e.target.closest('.edit-query-action-btn') || e.target.closest('button')) return;
                                          if (msg.drawnArea) {
                                            setLastDrawnQuery(msg.drawnArea);
                                            setRestoredDrawnGeometry({ ...msg.drawnArea, trigger: Date.now() });
@@ -6555,7 +6573,47 @@ function App() {
                                        <div style={{ lineHeight: '1.45', wordBreak: 'break-word' }}>
                                          {cleanMarkdownText(msg.text)}
                                        </div>
+                                       <div style={{
+                                         display: 'flex',
+                                         justifyContent: lang === 'ar' ? 'flex-start' : 'flex-end',
+                                         marginTop: '2px'
+                                       }}>
+                                         <button
+                                           type="button"
+                                           className="edit-query-action-btn"
+                                           onClick={() => {
+                                             setEditingMessageIdx(idx);
+                                             setEditingMessageText(msg.rawQuery || msg.text || '');
+                                           }}
+                                           title={t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}
+                                           style={{
+                                             background: 'rgba(255, 255, 255, 0.18)',
+                                             border: '1px solid rgba(255, 255, 255, 0.35)',
+                                             borderRadius: '6px',
+                                             padding: '3px 8px',
+                                             color: '#FFFFFF',
+                                             fontSize: '11px',
+                                             fontWeight: 500,
+                                             cursor: 'pointer',
+                                             display: 'inline-flex',
+                                             alignItems: 'center',
+                                             gap: '4px',
+                                             backdropFilter: 'blur(8px)',
+                                             transition: 'all 0.15s ease'
+                                           }}
+                                           onMouseEnter={(e) => {
+                                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.30)';
+                                           }}
+                                           onMouseLeave={(e) => {
+                                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
+                                           }}
+                                         >
+                                           <Pencil size={11} strokeWidth={2.2} />
+                                           <span>{t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}</span>
+                                         </button>
+                                       </div>
                                      </div>
+                                   )
                                 ) : (
                                   <div className="chat-bubble-content" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     {msg.isSearching ? (

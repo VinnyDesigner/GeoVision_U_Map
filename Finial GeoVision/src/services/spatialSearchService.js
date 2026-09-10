@@ -7691,10 +7691,10 @@ class SpatialAIEngine {
       this.context.selectedFeature = options.selectedLocation;
     }
 
-    if (options?.drawnArea) {
+    if (options && 'drawnArea' in options) {
       this.setDrawnAreaContext(options.drawnArea);
     }
-    let activeDrawnArea = this.context.drawnArea || options?.drawnArea || null;
+    let activeDrawnArea = this.context.drawnArea || null;
 
     // 0.0 CHECK FOR NATURAL LANGUAGE APPLICATION CONTROL COMMANDS (Theme, Language, Basemap, Navigation, Layers, Legend, Locate, Draw, Print)
     const appControlRes = this.evaluateApplicationControlCommand(q, lang, options);
@@ -8397,8 +8397,18 @@ class SpatialAIEngine {
     const locInMatch = qLower.match(/\bin\s+([a-z0-9_\s]+)/i) || qLower.match(/\bفي\s+([\u0600-\u06FF\s]+)/);
     if (!targetDistrict && locInMatch) {
       const candidateLoc = locInMatch[1].trim().toLowerCase();
-      const ignoreWords = ['abu dhabi', 'dubai', 'uae', 'the area', 'my location', 'this area', 'all areas', 'الامارات', 'أبوظبي', 'دبي'];
-      if (!ignoreWords.includes(candidateLoc) && candidateLoc.length > 3 && !Object.keys(DISTRICT_COORDINATES).some(k => candidateLoc.includes(k))) {
+      const isDrawnAreaRef = candidateLoc.includes('selected area') || candidateLoc.includes('drawn area') ||
+        candidateLoc.includes('the area') || candidateLoc.includes('this area') || candidateLoc.includes('current area') ||
+        candidateLoc.includes('boundary') || candidateLoc.includes('bounding box') || candidateLoc.includes('circle') ||
+        candidateLoc.includes('polygon') || candidateLoc.includes('المنطقة المحددة') || candidateLoc.includes('هذه المنطقة') ||
+        candidateLoc.includes('المنطقة') || candidateLoc.includes('المختارة') || candidateLoc.includes('المرسومة') || candidateLoc.includes('داخل');
+      const ignoreWords = [
+        'abu dhabi', 'dubai', 'uae', 'the area', 'my location', 'this area', 'all areas',
+        'the selected area', 'selected area', 'the drawn area', 'drawn area', 'current area',
+        'bounding box', 'this circle', 'this polygon', 'the boundary',
+        'الامارات', 'أبوظبي', 'دبي', 'المنطقة المحددة', 'المنطقة', 'هذه المنطقة'
+      ];
+      if (!isDrawnAreaRef && !ignoreWords.includes(candidateLoc) && candidateLoc.length > 3 && !Object.keys(DISTRICT_COORDINATES).some(k => candidateLoc.includes(k))) {
         return {
           intent: 'zero_results',
           querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
@@ -9013,15 +9023,16 @@ class SpatialAIEngine {
         label: lang === 'ar' ? 'توسيع النطاق إلى 5 كم' : 'Increase radius to 5 km',
         query: 'Increase radius to 5 km'
       });
+      const catLower = activeCat ? activeCat.toLowerCase() : 'facilities';
       if (activeFilters.sector) {
         chips.push({
           label: lang === 'ar' ? `عرض كافة القطاعات في ${activeLocAr}` : `Show all sectors in ${activeLoc}`,
-          query: `Show ${activeCat.toLowerCase()} in ${activeLoc}`
+          query: `Show ${catLower} in ${activeLoc}`
         });
       }
       chips.push({
         label: lang === 'ar' ? 'البحث في كافة أنحاء أبوظبي' : 'Search across all Abu Dhabi',
-        query: `Show ${activeCat.toLowerCase()} across Abu Dhabi`
+        query: `Show ${catLower} across Abu Dhabi`
       });
       chips.push({
         label: lang === 'ar' ? `البحث في ${activeLocAr}` : `Search around ${activeLoc}`,
@@ -9676,22 +9687,43 @@ export function isPointInCircle(point, center, radiusMeters) {
 }
 
 export function isPointInBounds(point, bounds) {
-  if (!bounds) return false;
-  const lat = point.lat;
-  const lon = point.lon;
+  if (!bounds || !point) return false;
+  const lat = point.lat !== undefined ? point.lat : point[0];
+  const lon = point.lon !== undefined ? point.lon : (point.lng !== undefined ? point.lng : point[1]);
+
+  let south, north, west, east;
 
   if (bounds.getSouth && bounds.getNorth) {
-    return lat >= bounds.getSouth() && lat <= bounds.getNorth() &&
-      lon >= bounds.getWest() && lon <= bounds.getEast();
+    south = bounds.getSouth();
+    north = bounds.getNorth();
+    west = bounds.getWest();
+    east = bounds.getEast();
+  } else if (bounds._southWest && bounds._northEast) {
+    south = bounds._southWest.lat;
+    north = bounds._northEast.lat;
+    west = bounds._southWest.lng !== undefined ? bounds._southWest.lng : bounds._southWest.lon;
+    east = bounds._northEast.lng !== undefined ? bounds._northEast.lng : bounds._northEast.lon;
+  } else if (bounds.south !== undefined && bounds.north !== undefined) {
+    south = bounds.south;
+    north = bounds.north;
+    west = bounds.west !== undefined ? bounds.west : (bounds.lngWest !== undefined ? bounds.lngWest : bounds.lonWest);
+    east = bounds.east !== undefined ? bounds.east : (bounds.lngEast !== undefined ? bounds.lngEast : bounds.lonEast);
+  } else if (bounds.minLat !== undefined && bounds.maxLat !== undefined) {
+    south = bounds.minLat;
+    north = bounds.maxLat;
+    west = bounds.minLon !== undefined ? bounds.minLon : bounds.minLng;
+    east = bounds.maxLon !== undefined ? bounds.maxLon : bounds.maxLng;
+  } else if (Array.isArray(bounds) && bounds.length === 2) {
+    south = Math.min(bounds[0][0] !== undefined ? bounds[0][0] : bounds[0].lat, bounds[1][0] !== undefined ? bounds[1][0] : bounds[1].lat);
+    north = Math.max(bounds[0][0] !== undefined ? bounds[0][0] : bounds[0].lat, bounds[1][0] !== undefined ? bounds[1][0] : bounds[1].lat);
+    west = Math.min(bounds[0][1] !== undefined ? bounds[0][1] : (bounds[0].lng || bounds[0].lon), bounds[1][1] !== undefined ? bounds[1][1] : (bounds[1].lng || bounds[1].lon));
+    east = Math.max(bounds[0][1] !== undefined ? bounds[0][1] : (bounds[0].lng || bounds[0].lon), bounds[1][1] !== undefined ? bounds[1][1] : (bounds[1].lng || bounds[1].lon));
+  } else {
+    return false;
   }
-  if (Array.isArray(bounds) && bounds.length === 2) {
-    const south = Math.min(bounds[0][0] !== undefined ? bounds[0][0] : bounds[0].lat, bounds[1][0] !== undefined ? bounds[1][0] : bounds[1].lat);
-    const north = Math.max(bounds[0][0] !== undefined ? bounds[0][0] : bounds[0].lat, bounds[1][0] !== undefined ? bounds[1][0] : bounds[1].lat);
-    const west = Math.min(bounds[0][1] !== undefined ? bounds[0][1] : (bounds[0].lng || bounds[0].lon), bounds[1][1] !== undefined ? bounds[1][1] : (bounds[1].lng || bounds[1].lon));
-    const east = Math.max(bounds[0][1] !== undefined ? bounds[0][1] : (bounds[0].lng || bounds[0].lon), bounds[1][1] !== undefined ? bounds[1][1] : (bounds[1].lng || bounds[1].lon));
-    return lat >= south && lat <= north && lon >= west && lon <= east;
-  }
-  return false;
+
+  return lat >= Math.min(south, north) && lat <= Math.max(south, north) &&
+         lon >= Math.min(west, east) && lon <= Math.max(west, east);
 }
 
 /**
@@ -9709,8 +9741,9 @@ export function isPointInDrawnArea(point, drawnArea) {
     return isPointInPolygon(point, coordinates);
   }
   if (geometryType === 'rectangle' || geometryType === 'square') {
-    if (bounds) return isPointInBounds(point, bounds);
-    if (coordinates && coordinates.length >= 4) return isPointInPolygon(point, coordinates);
+    if (bounds && isPointInBounds(point, bounds)) return true;
+    if (coordinates && coordinates.length >= 4 && isPointInPolygon(point, coordinates)) return true;
+    return false;
   }
   if (geometryType === 'click' || geometryType === 'point') {
     return isPointInCircle(point, center || (coordinates ? coordinates[0] : null), 2500);
