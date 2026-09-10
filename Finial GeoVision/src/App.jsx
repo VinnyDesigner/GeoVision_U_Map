@@ -16,6 +16,7 @@ import {
   MapPin,
   Ruler,
   RefreshCw,
+  RotateCcw,
   Shield,
   Eye,
   EyeOff,
@@ -137,6 +138,7 @@ import FeedbackModal from './components/FeedbackModal.jsx';
 import FloatingFeedbackButton from './components/FloatingFeedbackButton.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AboutUsPage from './pages/AboutUsPage.jsx';
+import HelpSupportPage from './pages/HelpSupportPage.jsx';
 
 function App() {
   const [theme, setTheme] = useState(() => {
@@ -187,6 +189,7 @@ function App() {
   const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [authState, setAuthState] = useState('login');
   const [isAboutUsOpen, setIsAboutUsOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1483,6 +1486,7 @@ function App() {
   const [expandedCategory, setExpandedCategory] = useState('Education');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [selectedSubcategories, setSelectedSubcategories] = useState({});
+  const hadCategorySelectionRef = useRef(false);
 
   // Profile Dropdown state
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -2642,14 +2646,30 @@ function App() {
     });
   };
 
+  const handleClearAllCategories = () => {
+    const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
+    if (activeKeys.length === 0) return;
+    hadCategorySelectionRef.current = false;
+    setSelectedSubcategories({});
+    setActiveSearchResults([]);
+    setActiveSearchFilterTag(null);
+  };
+
   // Synchronize category multi-selection directly with plotted map features
   useEffect(() => {
-    const activeKeys = Object.keys(selectedSubcategories).filter(k => selectedSubcategories[k]);
+    const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
 
     // If no layer category is selected in the drawer, do not overwrite active AI search results
     if (activeKeys.length === 0) {
+      if (hadCategorySelectionRef.current) {
+        hadCategorySelectionRef.current = false;
+        setActiveSearchResults([]);
+        setActiveSearchFilterTag(null);
+      }
       return;
     }
+
+    hadCategorySelectionRef.current = true;
 
     // Explicit layer checkbox selection: filter dataset for active keys
     let matched = GEOVISION_SPATIAL_DATASET.filter(item => {
@@ -3249,6 +3269,63 @@ function App() {
     setLogs([]);
   };
 
+  if (isHelpOpen) {
+    return (
+      <>
+        <HelpSupportPage
+          activeBasemap={activeBasemap}
+          showMap={showMap}
+          setShowMap={setShowMap}
+          isCategoryDrawerOpen={isCategoryDrawerOpen}
+          setIsCategoryDrawerOpen={setIsCategoryDrawerOpen}
+          lang={lang}
+          setLang={setLang}
+          theme={theme}
+          setTheme={setTheme}
+          isProfileOpen={isProfileOpen}
+          setIsProfileOpen={setIsProfileOpen}
+          profileMenuRef={profileMenuRef}
+          isLoggedIn={isLoggedIn}
+          setIsLoggedIn={setIsLoggedIn}
+          isSignInOpen={isSignInOpen}
+          setIsSignInOpen={setIsSignInOpen}
+          authState={authState}
+          setAuthState={setAuthState}
+          isAboutUsOpen={isAboutUsOpen}
+          setIsAboutUsOpen={setIsAboutUsOpen}
+          isHelpOpen={isHelpOpen}
+          setIsHelpOpen={setIsHelpOpen}
+          isFeedbackOpen={isFeedbackOpen}
+          setIsFeedbackOpen={setIsFeedbackOpen}
+          currentUser={currentUser}
+          t={t}
+          handleSearchSubmit={handleSearchSubmit}
+          handleUnifiedSearch={handleUnifiedSearch}
+          showToast={showToast}
+          setIsSidebarOpen={setIsSidebarOpen}
+          setActiveTab={setActiveTab}
+          setAiPanelSubView={setAiPanelSubView}
+          setIsAISearchBarOpen={setIsAISearchBarOpen}
+          setIsAiMinimized={setIsAiMinimized}
+        />
+        <FloatingFeedbackButton
+          onClick={() => setIsFeedbackOpen(true)}
+          lang={lang}
+          theme={theme}
+          isFeedbackOpen={isFeedbackOpen}
+        />
+        <FeedbackModal
+          isOpen={isFeedbackOpen}
+          onClose={() => setIsFeedbackOpen(false)}
+          lang={lang}
+          theme={theme}
+          showToast={showToast}
+          currentUser={currentUser}
+        />
+      </>
+    );
+  }
+
   if (!showMap) {
     if (isAboutUsOpen) {
       return (
@@ -3274,6 +3351,8 @@ function App() {
             setAuthState={setAuthState}
             isAboutUsOpen={isAboutUsOpen}
             setIsAboutUsOpen={setIsAboutUsOpen}
+            isHelpOpen={isHelpOpen}
+            setIsHelpOpen={setIsHelpOpen}
             isFeedbackOpen={isFeedbackOpen}
             setIsFeedbackOpen={setIsFeedbackOpen}
             currentUser={currentUser}
@@ -3331,6 +3410,8 @@ function App() {
           setAuthState={setAuthState}
           isAboutUsOpen={isAboutUsOpen}
           setIsAboutUsOpen={setIsAboutUsOpen}
+          isHelpOpen={isHelpOpen}
+          setIsHelpOpen={setIsHelpOpen}
           isFeedbackOpen={isFeedbackOpen}
           setIsFeedbackOpen={setIsFeedbackOpen}
           t={t}
@@ -3395,6 +3476,8 @@ function App() {
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isHelpOpen={isHelpOpen}
+        setIsHelpOpen={setIsHelpOpen}
         isFeedbackOpen={isFeedbackOpen}
         setIsFeedbackOpen={setIsFeedbackOpen}
         currentUser={currentUser}
@@ -3922,24 +4005,38 @@ function App() {
                 direction: lang === 'ar' ? 'rtl' : 'ltr'
               }}
             >
-              {/* PANEL HEADER WITH TITLE & CLOSE BUTTON */}
+              {/* PANEL HEADER WITH TITLE, CLEAR ALL & CLOSE BUTTON */}
               <div className="categories-popover-header">
                 <h3 className="categories-popover-title">
                   {t.allCategories || (lang === 'ar' ? 'جميع الفئات' : 'All Categories')}
                 </h3>
 
-                <button
-                  type="button"
-                  className="categories-popover-close-btn"
-                  onClick={() => setActiveLeftPopover(null)}
-                  title={lang === 'ar' ? 'إغلاق اللوحة' : 'Close Categories Panel'}
-                  aria-label="Close Categories Panel"
-                >
-                  <X
-                    size={16}
-                    strokeWidth={2.4}
-                  />
-                </button>
+                <div className="categories-popover-actions">
+                  <button
+                    type="button"
+                    className={`categories-popover-clear-btn ${Object.keys(selectedSubcategories || {}).some(k => selectedSubcategories[k]) ? 'active' : 'disabled'}`}
+                    onClick={handleClearAllCategories}
+                    disabled={!Object.keys(selectedSubcategories || {}).some(k => selectedSubcategories[k])}
+                    title={lang === 'ar' ? 'إلغاء تحديد كافة الفئات' : 'Clear all selected categories'}
+                    aria-label={t.clearAll || (lang === 'ar' ? 'مسح الكل' : 'Clear All')}
+                  >
+                    <RotateCcw size={11} strokeWidth={2.4} />
+                    <span>{t.clearAll || (lang === 'ar' ? 'مسح الكل' : 'Clear All')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="categories-popover-close-btn"
+                    onClick={() => setActiveLeftPopover(null)}
+                    title={lang === 'ar' ? 'إغلاق اللوحة' : 'Close Categories Panel'}
+                    aria-label="Close Categories Panel"
+                  >
+                    <X
+                      size={16}
+                      strokeWidth={2.4}
+                    />
+                  </button>
+                </div>
               </div>
 
               {/* SEARCH INPUT BAR */}

@@ -32,6 +32,8 @@ export default function LandingPage({
   setAuthState: propSetAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isHelpOpen,
+  setIsHelpOpen,
   isFeedbackOpen,
   setIsFeedbackOpen,
   t,
@@ -373,6 +375,8 @@ export default function LandingPage({
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isHelpOpen={isHelpOpen}
+        setIsHelpOpen={setIsHelpOpen}
         isFeedbackOpen={isFeedbackOpen}
         setIsFeedbackOpen={setIsFeedbackOpen}
         t={t}

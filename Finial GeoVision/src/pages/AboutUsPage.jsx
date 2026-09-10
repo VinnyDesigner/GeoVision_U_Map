@@ -50,6 +50,8 @@ export default function AboutUsPage({
   setAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isHelpOpen,
+  setIsHelpOpen,
   isFeedbackOpen,
   setIsFeedbackOpen,
   currentUser,
@@ -104,6 +106,8 @@ export default function AboutUsPage({
         setAuthState={setAuthState}
         isAboutUsOpen={isAboutUsOpen}
         setIsAboutUsOpen={setIsAboutUsOpen}
+        isHelpOpen={isHelpOpen}
+        setIsHelpOpen={setIsHelpOpen}
         isFeedbackOpen={isFeedbackOpen}
         setIsFeedbackOpen={setIsFeedbackOpen}
         currentUser={currentUser}

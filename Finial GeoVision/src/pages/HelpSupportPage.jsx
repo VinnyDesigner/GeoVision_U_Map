@@ -1,0 +1,915 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Sparkles,
+  Map,
+  BarChart2,
+  Bookmark,
+  Search,
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Play,
+  FileText,
+  MessageCircleQuestion,
+  ExternalLink,
+  ChevronRight,
+  CheckCircle2,
+  HelpCircle,
+  Download
+} from 'lucide-react';
+import CommonHeader from '../components/CommonHeader.jsx';
+import aboutHeroBg from '../assets/about_hero_bg.png';
+import aboutHeroBgDark from '../assets/about_hero_bg_dark.png';
+import './HelpSupportPage.css';
+
+const HELP_DATA = {
+  en: {
+    heroTag: "Help & Support",
+    heroTitle: "How can we help you?",
+    heroDesc: "Explore step-by-step guides, interactive spatial tools, AI capabilities, and GIS documentation.",
+    searchPlaceholder: "Search Help Topics (e.g. AI search, layers, draw, route, favorites)...",
+    clearSearch: "Clear",
+    noResultsTitle: "No matching help topics found",
+    noResultsDesc: "Try adjusting your search terms or browse the main categories below.",
+    resetSearch: "View all topics",
+    learnMore: "Learn",
+    backToTopics: "Back to all topics",
+    tryOnMap: "Try on Map",
+    quickTutorialsTitle: "Quick Tutorials",
+    videoTutorialTitle: "Video Tutorial",
+    videoTutorialDesc: "Step-by-step guidance for using GeoVision.",
+    videoTutorialBtn: "Watch Video",
+    userGuideTitle: "User Guide",
+    userGuideDesc: "Detailed GeoVision user guide in PDF format.",
+    userGuideBtn: "Open Guide",
+    contactSupportTitle: "Still need help?",
+    contactSupportDesc: "Our GIS specialists and support team are here to assist with spatial data inquiries, platform questions, and workflows.",
+    contactSupportBtn: "Contact Support",
+
+    cards: [
+      {
+        id: "ai-search",
+        title: "AI Spatial Search",
+        icon: "sparkles",
+        items: [
+          "Ask AI questions",
+          "Follow-up queries",
+          "Draw an area and ask AI",
+          "Natural-language spatial search"
+        ],
+        overview: "GeoVision features an advanced spatial natural language processing engine that translates conversational queries into precise GIS spatial queries across Abu Dhabi.",
+        steps: [
+          {
+            title: "Natural Language Spatial Queries",
+            desc: "Type plain-language questions like 'Show public parks in Abu Dhabi' or 'Find hospitals near Al Reem Island' directly into the smart search bar."
+          },
+          {
+            title: "Multi-Turn Conversational Follow-Ups",
+            desc: "Ask contextual questions following any query, such as 'Which one is closest?' or 'How many are there?' without repeating the category."
+          },
+          {
+            title: "Spatial Boundary Queries",
+            desc: "Use the Draw tool to sketch a circle, rectangle, or polygon on the map, then ask: 'Show commercial buildings in this area'."
+          },
+          {
+            title: "Quantitative & Comparative Analytics",
+            desc: "Query counts, rankings, and attribute filters like 'Schools with highest rating' or 'Compare industrial facilities in ICAD'."
+          }
+        ],
+        sampleQueries: [
+          "Show parks in Abu Dhabi",
+          "How many schools are in Khalifa City?",
+          "Hospitals with more than 100 beds",
+          "Which park is closest to Al Maryah Island?"
+        ]
+      },
+      {
+        id: "map-tools",
+        title: "Map Tools",
+        icon: "map",
+        items: [
+          "Explore the map",
+          "Layers & Categories",
+          "Basemap",
+          "My Location",
+          "Draw & Measure",
+          "Zoom & Navigation"
+        ],
+        overview: "Interact with Abu Dhabi's official geospatial foundation through comprehensive map controls, layers, basemaps, and measurement tools.",
+        steps: [
+          {
+            title: "Layers & Categories Panel",
+            desc: "Toggle domain categories (Education, Healthcare, Parks, Energy, Transport, Government) to visualize specific spatial datasets with live counts."
+          },
+          {
+            title: "High-Resolution Basemaps",
+            desc: "Switch between Streets, Satellite Imagery, and Clean Light Gray topographic basemaps using the basemap selector on the left dock."
+          },
+          {
+            title: "GPS & Current Location",
+            desc: "Center the map on your exact GPS coordinates with one click using the My Location tool."
+          },
+          {
+            title: "Draw & Measure Tools",
+            desc: "Sketch polygons, rectangles, circles, or measure geodesic distances and areas across the emirate."
+          },
+          {
+            title: "Smooth Navigation Controls",
+            desc: "Pan, zoom, tilt, and reset bearings with dedicated on-screen navigation buttons and keyboard shortcuts."
+          }
+        ],
+        sampleQueries: [
+          "Open All Categories panel",
+          "Switch to Satellite Basemap",
+          "Locate my current position",
+          "Measure distance between landmarks"
+        ]
+      },
+      {
+        id: "explore-analyze",
+        title: "Explore & Analyze",
+        icon: "analytics",
+        items: [
+          "Search Results",
+          "Feature Details",
+          "Route",
+          "Analytics",
+          "GIS Print"
+        ],
+        overview: "Analyze geospatial attributes, inspect feature metadata, calculate multimodal routes, and generate high-resolution GIS map prints.",
+        steps: [
+          {
+            title: "Feature Inspection",
+            desc: "Click any marker or POI on the map to open the Detailed Information panel with coordinates, contact info, ratings, and sector metrics."
+          },
+          {
+            title: "Turn-by-Turn Routing",
+            desc: "Calculate optimal driving and walking routes to any location with step-by-step directions and distance calculations."
+          },
+          {
+            title: "Spatial Analytics & Charts",
+            desc: "View aggregated statistics, sector breakdowns, emissions distributions, and district comparisons in the AI panel."
+          },
+          {
+            title: "GIS Print & Export",
+            desc: "Generate professional GIS map sheets with scale bar, north arrow, legend, metadata banner, and high-resolution export."
+          }
+        ],
+        sampleQueries: [
+          "Directions to Sheikh Zayed Grand Mosque",
+          "Compare industrial emissions in ICAD",
+          "Print high-resolution map view",
+          "Inspect hospital bed capacity"
+        ]
+      },
+      {
+        id: "history-favorites",
+        title: "History & Favorites",
+        icon: "bookmark",
+        items: [
+          "History",
+          "Pin Query",
+          "Favorites"
+        ],
+        overview: "Quickly access past spatial queries, bookmark important facilities, and pin recurring searches for instant retrieval.",
+        steps: [
+          {
+            title: "Search History",
+            desc: "Browse past queries and spatial results stored in your session. Re-run any past search with a single click."
+          },
+          {
+            title: "Pin Queries",
+            desc: "Pin key analytical queries to your dashboard for quick access during recurring workflows."
+          },
+          {
+            title: "Saved Favorites",
+            desc: "Bookmark specific schools, parks, hospitals, or government centers to your personal favorites collection."
+          }
+        ],
+        sampleQueries: [
+          "View recent search history",
+          "Pin this query for later",
+          "Open My Saved Favorites",
+          "Manage bookmarked locations"
+        ]
+      }
+    ]
+  },
+
+  ar: {
+    heroTag: "المساعدة والدعم",
+    heroTitle: "كيف يمكننا مساعدتك؟",
+    heroDesc: "استكشف أدلة الاستخدام، وأدوات نظم المعلومات الجغرافية التفاعلية، والبحث الذكي، والتوثيق المكاني.",
+    searchPlaceholder: "البحث في مواضيع المساعدة (مثل: البحث الذكي، الطبقات، رسم منطقة، المسار، المفضلة)...",
+    clearSearch: "مسح",
+    noResultsTitle: "لم يتم العثور على مواضيع مطابقة",
+    noResultsDesc: "يرجى تجربة كلمات بحث أخرى أو تصفح الأقسام الرئيسية أدناه.",
+    resetSearch: "عرض كافة المواضيع",
+    learnMore: "تعرف على المزيد",
+    backToTopics: "العودة إلى كافة المواضيع",
+    tryOnMap: "تجربة على الخريطة",
+    quickTutorialsTitle: "دروس تعليمية سريعة",
+    videoTutorialTitle: "فيديو توضيحي",
+    videoTutorialDesc: "إرشادات خطوة بخطوة لاستخدام منصة جيو فيجن.",
+    videoTutorialBtn: "مشاهدة الفيديو",
+    userGuideTitle: "دليل المستخدم",
+    userGuideDesc: "دليل مستخدم جيو فيجن المفصل بصيغة PDF.",
+    userGuideBtn: "فتح الدليل",
+    contactSupportTitle: "هل ما زلت بحاجة إلى مساعدة؟",
+    contactSupportDesc: "فريق الدعم وأخصائيو نظم المعلومات الجغرافية متواجدون للإجابة عن استفسارات البيانات المكانية وسير العمل.",
+    contactSupportBtn: "تواصل مع الدعم الفني",
+
+    cards: [
+      {
+        id: "ai-search",
+        title: "البحث المكاني بالذكاء الاصطناعي",
+        icon: "sparkles",
+        items: [
+          "طرح أسئلة على الذكاء الاصطناعي",
+          "استعلامات المتابعة التفاعلية",
+          "رسم منطقة جغرافية وسؤال الذكاء الاصطناعي",
+          "بحث مكاني باللغة الطبيعية"
+        ],
+        overview: "تتميز منصة جيو فيجن بمحرك معالجة لغة طبيعية مكانية متقدم يترجم الأسئلة الشائعة إلى استعلامات جغرافية دقيقة عبر إمارة أبوظبي.",
+        steps: [
+          {
+            title: "استعلامات مكانية باللغة الطبيعية",
+            desc: "اطرح أسئلتك بلغة واضحة مثل 'اعرض الحدائق العامة في أبوظبي' أو 'المستشفيات القريبة من جزيرة الريم'."
+          },
+          {
+            title: "متابعة الحوار متعدد الاستعلامات",
+            desc: "اطرح أسئلة سياقية متابعة مثل 'ما هو الأقرب؟' أو 'كم عددها؟' دون الحاجة لتكرار الفئة."
+          },
+          {
+            title: "استعلامات الحدود المرسومة",
+            desc: "استخدم أداة الرسم لتحديد دائرة أو مستطيل أو مضلع على الخريطة، ثم اسأل: 'اعرض المباني التجارية في هذه المنطقة'."
+          },
+          {
+            title: "التحليل الكمي والمقارن",
+            desc: "استعلم عن الإحصائيات، الترتيب التفضيلي، والتصنيف مثل 'المدارس الأعلى تقييماً' أو 'قارن المنشآت الصناعية في أيكاد'."
+          }
+        ],
+        sampleQueries: [
+          "اعرض الحدائق في أبوظبي",
+          "كم عدد المدارس في مدينة خليفة؟",
+          "المستشفيات التي تحتوي على أكثر من 100 سرير",
+          "ما هي أقرب حديقة لجزيرة المارية؟"
+        ]
+      },
+      {
+        id: "map-tools",
+        title: "أدوات الخريطة",
+        icon: "map",
+        items: [
+          "استكشاف الخريطة",
+          "الطبقات والفئات",
+          "خرائط الأساس",
+          "موقعي الجغرافي",
+          "الرسم والقياس",
+          "التكبير والتنقل"
+        ],
+        overview: "تفاعل مع البنية التحتية الجيومكانية المعتمدة لإمارة أبوظبي عبر أدوات التحكم المتكاملة، الطبقات، خرائط الأساس، وأدوات القياس.",
+        steps: [
+          {
+            title: "لوحة الطبقات والفئات",
+            desc: "تفعيل وإيقاف فئات البيانات (التعليم، الصحة، الحدائق، الطاقة، النقل، الخدمات الحكومية) لعرض معالم محددة."
+          },
+          {
+            title: "خرائط أساس عالية الدقة",
+            desc: "التبديل بين خريطة الشوارع، صور الأقمار الصناعية، والخريطة الرمادية الفاتحة عبر مبدل خرائط الأساس."
+          },
+          {
+            title: "تحديد الموقع الجغرافي الفعلي",
+            desc: "تركيز الخريطة على موقع جهازك الجغرافي الفعلي بنقرة واحدة باستخدام أداة 'موقعي'."
+          },
+          {
+            title: "أدوات الرسم والقياس الجيوديسي",
+            desc: "رسم مضلعات، مستطيلات، ودوائر، وقياس المسافات والمساحات الجيوديسية عبر الإمارة بدقة."
+          },
+          {
+            title: "أدوات التكبير والتدوير السلس",
+            desc: "التحريك، التكبير والتصغير، وضبط الاتجاهات عبر عناصر التحكم المخصصة واختصارات لوحة المفاتيح."
+          }
+        ],
+        sampleQueries: [
+          "فتح لوحة كافة الفئات",
+          "التبديل إلى صور الأقمار الصناعية",
+          "تحديد موقعي الحالي على الخريطة",
+          "قياس المسافة بين المعالم"
+        ]
+      },
+      {
+        id: "explore-analyze",
+        title: "الاستكشاف والتحليل",
+        icon: "analytics",
+        items: [
+          "نتائج البحث",
+          "تفاصيل المعالم",
+          "المسارات والتوجيه",
+          "التحليلات المكانية",
+          "طباعة الخرائط"
+        ],
+        overview: "تحليل الخصائص الجيومكانية، فحص بيانات المعالم التفصيلية، حساب المسارات، وإصدار خرائط رسمية عالية الجودة.",
+        steps: [
+          {
+            title: "فحص تفاصيل المعلم",
+            desc: "انقر على أي نقطة أو معلم بالخريطة لفتح لوحة المعلومات التفصيلية متضمنة الإحداثيات، بيانات الاتصال، والتقييم."
+          },
+          {
+            title: "التوجيه وحساب المسارات",
+            desc: "حساب أفضل مسارات القيادة والمشي لأي موقع مع إرشادات تفصيلية خطوة بخطوة وتقدير المسافة والزمن."
+          },
+          {
+            title: "التحليلات المكانية والرسوم البيانية",
+            desc: "عرض الإحصائيات التجميعية، وتوزيع القطاعات، وتحليلات الانبعاثات في لوحة الذكاء الاصطناعي."
+          },
+          {
+            title: "طباعة وتصدير الخرائط الرسمية",
+            desc: "إنشاء لوحة خرائط احترافية مع مقياس الرسم، سهم الشمال، مفتاح الخريطة، وشريط البيانات الرسمي."
+          }
+        ],
+        sampleQueries: [
+          "مسار القيادة إلى جامع الشيخ زايد الكبير",
+          "مقارنة الانبعاثات الصناعية في أيكاد",
+          "طباعة لوحة الخريطة الحالية",
+          "فحص الطاقة الاستيعابية لأسرة المستشفيات"
+        ]
+      },
+      {
+        id: "history-favorites",
+        title: "السجل والمفضلة",
+        icon: "bookmark",
+        items: [
+          "سجل البحث",
+          "تثبيت الاستعلام",
+          "المواقع المفضلة"
+        ],
+        overview: "الوصول السريع إلى الاستعلامات السابقة، وحفظ المعالم الحيوية، وتثبيت الأسئلة المتكررة لسهولة الرجوع إليها.",
+        steps: [
+          {
+            title: "سجل عمليات البحث",
+            desc: "استعراض الاستعلامات السابقة والنتائج المكانية المسجلة في جلستك وإعادة تشغيل أي استعلام بنقرة واحدة."
+          },
+          {
+            title: "تثبيت الاستعلامات المهمة",
+            desc: "تثبيت استعلاماتك التحليلية الدورية في القائمة المخصصة لسرعة الوصول إليها مستقبلاً."
+          },
+          {
+            title: "المواقع المحفوظة في المفضلة",
+            desc: "حفظ المدارس، الحدائق، المراكز الصحية، أو المقار الحكومية المفضلة لديك ضمن مجموعتك المكانية."
+          }
+        ],
+        sampleQueries: [
+          "عرض سجل البحث الأخير",
+          "تثبيت هذا الاستعلام للرجوع إليه لاحقاً",
+          "فتح قائمة المواقع المفضلة",
+          "إدارة المعالم المحفوظة"
+        ]
+      }
+    ]
+  }
+};
+
+export default function HelpSupportPage({
+  activeBasemap,
+  showMap,
+  setShowMap,
+  isCategoryDrawerOpen,
+  setIsCategoryDrawerOpen,
+  lang = 'en',
+  setLang,
+  theme = 'light',
+  setTheme,
+  isProfileOpen,
+  setIsProfileOpen,
+  profileMenuRef,
+  isLoggedIn,
+  setIsLoggedIn,
+  isSignInOpen,
+  setIsSignInOpen,
+  authState,
+  setAuthState,
+  isAboutUsOpen,
+  setIsAboutUsOpen,
+  isHelpOpen,
+  setIsHelpOpen,
+  isFeedbackOpen,
+  setIsFeedbackOpen,
+  currentUser,
+  t,
+  handleSearchSubmit,
+  handleUnifiedSearch,
+  showToast,
+  setIsSidebarOpen,
+  setActiveTab,
+  setAiPanelSubView,
+  setIsAISearchBarOpen,
+  setIsAiMinimized
+}) {
+  const containerRef = useRef(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTopicId, setSelectedTopicId] = useState(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
+  const isRtl = lang === 'ar';
+  const data = HELP_DATA[lang] || HELP_DATA.en;
+
+  // Scroll to top on mount or when topic changes
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedTopicId]);
+
+  // Handle ESC key to exit detail view or modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isVideoModalOpen) setIsVideoModalOpen(false);
+        else if (isPdfModalOpen) setIsPdfModalOpen(false);
+        else if (selectedTopicId) setSelectedTopicId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isVideoModalOpen, isPdfModalOpen, selectedTopicId]);
+
+  // Filter cards based on search query
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const filteredCards = data.cards.filter(card => {
+    if (!trimmedSearch) return true;
+    const titleMatch = card.title.toLowerCase().includes(trimmedSearch);
+    const itemMatch = card.items.some(item => item.toLowerCase().includes(trimmedSearch));
+    const stepMatch = card.steps.some(step =>
+      step.title.toLowerCase().includes(trimmedSearch) ||
+      step.desc.toLowerCase().includes(trimmedSearch)
+    );
+    return titleMatch || itemMatch || stepMatch;
+  });
+
+  const selectedTopic = data.cards.find(c => c.id === selectedTopicId);
+
+  const getCardIcon = (iconType, size = 22) => {
+    switch (iconType) {
+      case 'sparkles':
+        return <Sparkles size={size} strokeWidth={2.2} />;
+      case 'map':
+        return <Map size={size} strokeWidth={2.2} />;
+      case 'analytics':
+        return <BarChart2 size={size} strokeWidth={2.2} />;
+      case 'bookmark':
+        return <Bookmark size={size} strokeWidth={2.2} />;
+      default:
+        return <HelpCircle size={size} strokeWidth={2.2} />;
+    }
+  };
+
+  const handleOpenMapWithQuery = (sampleQuery) => {
+    if (setIsHelpOpen) setIsHelpOpen(false);
+    if (setShowMap) setShowMap(true);
+    if (handleUnifiedSearch && sampleQuery) {
+      setTimeout(() => {
+        handleUnifiedSearch({ query: sampleQuery });
+      }, 200);
+    }
+    if (showToast) {
+      showToast(isRtl ? `جاري البحث: ${sampleQuery}` : `Running query: "${sampleQuery}"`);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={`help-support-page-wrapper ${theme === 'dark' ? 'help-dark' : 'help-light'}`}
+      dir={isRtl ? 'rtl' : 'ltr'}
+      data-theme={theme}
+    >
+      {/* ── 1. HEADER (Shared GeoVision Header with Branding & Controls) ── */}
+      <CommonHeader
+        activeBasemap={activeBasemap}
+        showMap={showMap}
+        setShowMap={setShowMap}
+        isCategoryDrawerOpen={isCategoryDrawerOpen}
+        setIsCategoryDrawerOpen={setIsCategoryDrawerOpen}
+        lang={lang}
+        setLang={setLang}
+        theme={theme}
+        setTheme={setTheme}
+        isProfileOpen={isProfileOpen}
+        setIsProfileOpen={setIsProfileOpen}
+        profileMenuRef={profileMenuRef}
+        isLoggedIn={isLoggedIn}
+        setIsLoggedIn={setIsLoggedIn}
+        isSignInOpen={isSignInOpen}
+        setIsSignInOpen={setIsSignInOpen}
+        authState={authState}
+        setAuthState={setAuthState}
+        isAboutUsOpen={isAboutUsOpen}
+        setIsAboutUsOpen={setIsAboutUsOpen}
+        isHelpOpen={isHelpOpen}
+        setIsHelpOpen={setIsHelpOpen}
+        isFeedbackOpen={isFeedbackOpen}
+        setIsFeedbackOpen={setIsFeedbackOpen}
+        currentUser={currentUser}
+        t={t}
+        handleSearchSubmit={handleSearchSubmit}
+        showToast={showToast}
+        setIsSidebarOpen={setIsSidebarOpen}
+        setActiveTab={setActiveTab}
+        setAiPanelSubView={setAiPanelSubView}
+        setIsAISearchBarOpen={setIsAISearchBarOpen}
+        setIsAiMinimized={setIsAiMinimized}
+      />
+
+      {/* ── 2. HERO SECTION ── */}
+      <section className="help-hero-section">
+        <div className="help-hero-bg-wrapper">
+          <img
+            src={theme === 'dark' ? aboutHeroBgDark : aboutHeroBg}
+            alt="Topographic Wave Background"
+            className="help-hero-bg-img"
+          />
+        </div>
+
+        <div className="help-hero-content">
+          <div className="help-hero-tag">
+            <HelpCircle size={13} strokeWidth={2.4} />
+            <span>{data.heroTag}</span>
+          </div>
+
+          <h1 className="help-hero-title">{data.heroTitle}</h1>
+          <p className="help-hero-desc">{data.heroDesc}</p>
+
+          {/* Prominent Search Field */}
+          <div className="help-search-container">
+            <div className="help-search-input-wrap">
+              <Search
+                size={18}
+                className="help-search-icon"
+                style={{
+                  left: isRtl ? 'auto' : '16px',
+                  right: isRtl ? '16px' : 'auto'
+                }}
+              />
+              <input
+                type="text"
+                className="help-search-input"
+                placeholder={data.searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  paddingLeft: isRtl ? '40px' : '48px',
+                  paddingRight: isRtl ? '48px' : '40px',
+                  textAlign: isRtl ? 'right' : 'left'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="help-search-clear-btn"
+                  onClick={() => setSearchQuery('')}
+                  title={data.clearSearch}
+                  aria-label={data.clearSearch}
+                >
+                  <X size={16} strokeWidth={2.4} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3. MAIN HELP CONTENT CONTAINER ── */}
+      <div className="help-container">
+        {/* If a specific topic is selected, render the interactive detail view */}
+        {selectedTopic ? (
+          <div className="help-detail-view">
+            <div className="help-detail-top-nav">
+              <button
+                type="button"
+                className="help-detail-back-btn"
+                onClick={() => setSelectedTopicId(null)}
+              >
+                {isRtl ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
+                <span>{data.backToTopics}</span>
+              </button>
+
+              <button
+                type="button"
+                className="help-card-btn"
+                onClick={() => {
+                  if (setIsHelpOpen) setIsHelpOpen(false);
+                  if (setShowMap) setShowMap(true);
+                }}
+              >
+                <span>{data.tryOnMap}</span>
+                {isRtl ? <ArrowLeft size={13} /> : <ArrowRight size={13} />}
+              </button>
+            </div>
+
+            <div className="help-detail-title-row">
+              <div className="help-card-icon-wrap">
+                {getCardIcon(selectedTopic.icon, 22)}
+              </div>
+              <h2 className="help-detail-title">{selectedTopic.title}</h2>
+            </div>
+
+            <p className="help-detail-overview">{selectedTopic.overview}</p>
+
+            <div className="help-detail-steps-grid">
+              {selectedTopic.steps.map((step, idx) => (
+                <div key={idx} className="help-detail-step-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <CheckCircle2 size={16} color="#0EA5E9" strokeWidth={2.4} />
+                    <h3 className="help-detail-step-title">{step.title}</h3>
+                  </div>
+                  <p className="help-detail-step-desc">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Sample Queries / Quick Actions */}
+            {selectedTopic.sampleQueries && selectedTopic.sampleQueries.length > 0 && (
+              <div className="help-detail-samples-wrap">
+                <div className="help-detail-samples-title">
+                  {isRtl ? 'أمثلة تجريبية على الخريطة' : 'Interactive Example Queries'}
+                </div>
+                <div className="help-detail-samples-chips">
+                  {selectedTopic.sampleQueries.map((sample, sIdx) => (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      className="help-sample-chip"
+                      onClick={() => handleOpenMapWithQuery(sample)}
+                      title={isRtl ? `تشغيل: "${sample}"` : `Run: "${sample}"`}
+                    >
+                      <Sparkles size={12} color="#0EA5E9" />
+                      <span>{sample}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Main 4 Cards in 2-Column Grid */
+          <section className="help-cards-section">
+            {filteredCards.length > 0 ? (
+              <div className="help-cards-grid">
+                {filteredCards.map((card) => (
+                  <div key={card.id} className="help-card">
+                    <div>
+                      <div className="help-card-header">
+                        <div className="help-card-icon-wrap">
+                          {getCardIcon(card.icon, 20)}
+                        </div>
+                        <h3 className="help-card-title">{card.title}</h3>
+                      </div>
+
+                      <ul className="help-card-content-list">
+                        {card.items.map((item, iIdx) => (
+                          <li key={iIdx} className="help-card-content-item">
+                            <span className="help-card-bullet" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="help-card-btn"
+                      onClick={() => setSelectedTopicId(card.id)}
+                    >
+                      <span>{data.learnMore}</span>
+                      {isRtl ? <ArrowLeft size={13} strokeWidth={2.4} /> : <ArrowRight size={13} strokeWidth={2.4} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* No Search Results */
+              <div style={{ textAlign: 'center', padding: '40px 16px' }}>
+                <MessageCircleQuestion size={40} color="#94A3B8" style={{ marginBottom: '12px' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 8px 0', color: theme === 'dark' ? '#FFFFFF' : '#002B5B' }}>
+                  {data.noResultsTitle}
+                </h3>
+                <p style={{ fontSize: '14px', color: '#64748B', margin: '0 0 16px 0' }}>
+                  {data.noResultsDesc}
+                </p>
+                <button
+                  type="button"
+                  className="help-card-btn"
+                  onClick={() => setSearchQuery('')}
+                  style={{ margin: '0 auto' }}
+                >
+                  <span>{data.resetSearch}</span>
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── 4. QUICK TUTORIALS SECTION ── */}
+        <section className="help-tutorials-section">
+          <div className="help-section-header">
+            <h2 className="help-section-title">{data.quickTutorialsTitle}</h2>
+          </div>
+
+          <div className="help-tutorials-grid">
+            {/* Resource 1: Video Tutorial */}
+            <div
+              className="help-tutorial-card"
+              onClick={() => setIsVideoModalOpen(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') setIsVideoModalOpen(true); }}
+            >
+              <div className="help-tutorial-left">
+                <div className="help-tutorial-badge video-badge">
+                  <Play size={18} fill="currentColor" />
+                </div>
+                <div>
+                  <h3 className="help-tutorial-card-title">{data.videoTutorialTitle}</h3>
+                  <p className="help-tutorial-card-desc">{data.videoTutorialDesc}</p>
+                </div>
+              </div>
+
+              <div className="help-tutorial-action-btn">
+                <span>{data.videoTutorialBtn}</span>
+              </div>
+            </div>
+
+            {/* Resource 2: User Guide */}
+            <div
+              className="help-tutorial-card"
+              onClick={() => setIsPdfModalOpen(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') setIsPdfModalOpen(true); }}
+            >
+              <div className="help-tutorial-left">
+                <div className="help-tutorial-badge pdf-badge">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="help-tutorial-card-title">{data.userGuideTitle}</h3>
+                  <p className="help-tutorial-card-desc">{data.userGuideDesc}</p>
+                </div>
+              </div>
+
+              <div className="help-tutorial-action-btn">
+                <span>{data.userGuideBtn}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 5. CONTACT SUPPORT SECTION ── */}
+        <section className="help-contact-section">
+          <div className="help-contact-card">
+            <h2 className="help-contact-title">{data.contactSupportTitle}</h2>
+            <p className="help-contact-desc">{data.contactSupportDesc}</p>
+
+            <button
+              type="button"
+              className="help-contact-btn"
+              onClick={() => {
+                if (setIsFeedbackOpen) setIsFeedbackOpen(true);
+              }}
+            >
+              <MessageCircleQuestion size={16} />
+              <span>{data.contactSupportBtn}</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      {/* ── VIDEO TUTORIAL MODAL ── */}
+      {isVideoModalOpen && (
+        <div className="help-modal-overlay" onClick={() => setIsVideoModalOpen(false)}>
+          <div className="help-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Play size={18} color="#EF4444" fill="#EF4444" />
+                <h3 className="help-modal-title">{data.videoTutorialTitle}</h3>
+              </div>
+              <button
+                type="button"
+                className="help-modal-close-btn"
+                onClick={() => setIsVideoModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '100%',
+                  aspectRatio: '16/9',
+                  background: '#0F172A',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}
+              >
+                <img
+                  src={aboutHeroBgDark}
+                  alt="Video Thumbnail"
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }}
+                />
+                <div style={{ position: 'relative', zIndex: 2, textAlign: 'center', padding: '16px' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto', cursor: 'pointer', boxShadow: '0 4px 20px rgba(239,68,68,0.5)' }}>
+                    <Play size={24} fill="#FFFFFF" color="#FFFFFF" style={{ marginLeft: isRtl ? '0' : '3px' }} />
+                  </div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700 }}>GeoVision Platform Masterclass</h4>
+                  <p style={{ margin: 0, fontSize: '12.5px', color: '#CBD5E1' }}>12:45 min · HD Tutorial · Abu Dhabi SDI</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '13.5px', lineHeight: '1.6', color: theme === 'dark' ? '#CBD5E1' : '#475569' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 6px 0', color: theme === 'dark' ? '#38BDF8' : '#004B87' }}>
+                {isRtl ? 'فصول الفيديو التعليمي:' : 'Tutorial Chapters:'}
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: isRtl ? '0' : '20px', paddingRight: isRtl ? '20px' : '0' }}>
+                <li>00:00 - Introduction to GeoVision & Abu Dhabi SDI</li>
+                <li>02:15 - Natural Language AI Spatial Search</li>
+                <li>05:30 - Map Layers, Basemaps & Boundary Drawing</li>
+                <li>08:45 - Route Directions & Spatial Analytics</li>
+                <li>11:20 - Exporting Official GIS Map Prints</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PDF USER GUIDE MODAL ── */}
+      {isPdfModalOpen && (
+        <div className="help-modal-overlay" onClick={() => setIsPdfModalOpen(false)}>
+          <div className="help-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} color="#0EA5E9" />
+                <h3 className="help-modal-title">{data.userGuideTitle}</h3>
+              </div>
+              <button
+                type="button"
+                className="help-modal-close-btn"
+                onClick={() => setIsPdfModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '18px', padding: '16px', background: theme === 'dark' ? 'rgba(30,41,59,0.5)' : '#F1F5F9', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: theme === 'dark' ? '#FFFFFF' : '#0F172A' }}>
+                  GeoVision User Manual v2.4 (Official)
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B' }}>
+                  PDF Document · 4.8 MB · Department of Government Enablement
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="help-card-btn"
+                onClick={() => {
+                  if (showToast) showToast(isRtl ? 'جاري تحميل دليل المستخدم...' : 'Downloading GeoVision User Guide...');
+                }}
+              >
+                <Download size={13} />
+                <span>{isRtl ? 'تحميل' : 'Download'}</span>
+              </button>
+            </div>
+
+            <div style={{ fontSize: '13.5px', lineHeight: '1.6', color: theme === 'dark' ? '#CBD5E1' : '#475569' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 8px 0', color: theme === 'dark' ? '#38BDF8' : '#004B87' }}>
+                {isRtl ? 'فهرس محتويات الدليل:' : 'Table of Contents:'}
+              </h4>
+              <ol style={{ margin: 0, paddingLeft: isRtl ? '0' : '20px', paddingRight: isRtl ? '20px' : '0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <li><strong>Chapter 1:</strong> System Overview, Architecture & Abu Dhabi Spatial Data SDI</li>
+                <li><strong>Chapter 2:</strong> Spatial AI Conversational Engine & Multi-Turn Queries</li>
+                <li><strong>Chapter 3:</strong> Layer Catalogs, Dynamic Categories & Taxonomy</li>
+                <li><strong>Chapter 4:</strong> Spatial Drawing, Geodesic Measurement & Boundary Intersections</li>
+                <li><strong>Chapter 5:</strong> Multimodal Routing, Analytics Summaries & GIS Print Generation</li>
+                <li><strong>Chapter 6:</strong> Account Preferences, Security & Feedback Procedures</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -44,6 +44,8 @@ export default function CommonHeader({
   setAuthState,
   isAboutUsOpen,
   setIsAboutUsOpen,
+  isHelpOpen,
+  setIsHelpOpen,
   isFeedbackOpen,
   setIsFeedbackOpen,
   currentUser,
@@ -67,6 +69,7 @@ export default function CommonHeader({
     setIsMobileMenuOpen(false);
     if (!showMap) {
       if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+      if (setIsHelpOpen) setIsHelpOpen(false);
     }
     if (setIsSignInOpen) setIsSignInOpen(true);
     if (setAuthState) {
@@ -106,6 +109,7 @@ export default function CommonHeader({
           e.preventDefault(); 
           setShowMap(false); 
           if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+          if (setIsHelpOpen) setIsHelpOpen(false);
           if (setIsSignInOpen) setIsSignInOpen(false); 
           if (setAuthState) setAuthState('login'); 
           if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
@@ -117,10 +121,11 @@ export default function CommonHeader({
       {/* Center Navigation (Desktop) */}
       <nav className="landing-nav-center desktop-only-nav">
         <button 
-          className={`landing-nav-item ${!showMap && !isSignInOpen && !isAboutUsOpen ? 'active' : ''}`} 
+          className={`landing-nav-item ${!showMap && !isSignInOpen && !isAboutUsOpen && !isHelpOpen ? 'active' : ''}`} 
           onClick={() => { 
             setShowMap(false); 
             if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+            if (setIsHelpOpen) setIsHelpOpen(false);
             if (setIsSignInOpen) setIsSignInOpen(false); 
             if (setAuthState) setAuthState('login'); 
             if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
@@ -129,10 +134,11 @@ export default function CommonHeader({
           <GeoVisionGradientIcon src={homeSvg} size={13} alt="Home" /> {t.home}
         </button>
         <button 
-          className={`landing-nav-item ${showMap && !isSignInOpen && !isAboutUsOpen ? 'active' : ''}`} 
+          className={`landing-nav-item ${showMap && !isSignInOpen && !isAboutUsOpen && !isHelpOpen ? 'active' : ''}`} 
           onClick={() => { 
             setShowMap(true); 
             if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+            if (setIsHelpOpen) setIsHelpOpen(false);
             if (setIsSignInOpen) setIsSignInOpen(false); 
             if (setAuthState) setAuthState('login'); 
             if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
@@ -141,10 +147,11 @@ export default function CommonHeader({
           <GeoVisionGradientIcon src={locationSvg} size={13} alt="Map view" /> {t.mapView || 'Map view'}
         </button>
         <button 
-          className={`landing-nav-item ${!showMap && isAboutUsOpen ? 'active' : ''}`} 
+          className={`landing-nav-item ${!showMap && isAboutUsOpen && !isHelpOpen ? 'active' : ''}`} 
           onClick={() => { 
             setShowMap(false); 
             if (setIsAboutUsOpen) setIsAboutUsOpen(true);
+            if (setIsHelpOpen) setIsHelpOpen(false);
             if (setIsSignInOpen) setIsSignInOpen(false); 
             if (setAuthState) setAuthState('login'); 
             if (setIsCategoryDrawerOpen) setIsCategoryDrawerOpen(false); 
@@ -169,11 +176,19 @@ export default function CommonHeader({
         </button>
 
         <button 
-          className="landing-icon-control" 
+          className={`landing-icon-control ${isHelpOpen ? 'landing-icon-control--active' : ''}`} 
           onClick={() => {
-            if (showToast) showToast(lang === 'ar' ? 'وثائق المساعدة والدعم' : "Help & Support documentation");
+            if (setIsHelpOpen) {
+              if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+              if (setIsSignInOpen) setIsSignInOpen(false);
+              setShowMap(false);
+              setIsHelpOpen(true);
+            } else if (showToast) {
+              showToast(lang === 'ar' ? 'وثائق المساعدة والدعم' : "Help & Support documentation");
+            }
           }} 
-          title={t.help || 'Help & Support'}
+          title={t.help || (lang === 'ar' ? 'المساعدة والدعم' : 'Help & Support')}
+          aria-label={t.help || (lang === 'ar' ? 'المساعدة والدعم' : 'Help & Support')}
         >
           <GeoVisionGradientIcon src={helpSvg} size={16} alt="Help & Support" />
         </button>
@@ -234,10 +249,11 @@ export default function CommonHeader({
 
             <div className="mobile-menu-items">
               <button 
-                className={`mobile-menu-btn ${!showMap && !isAboutUsOpen ? 'active' : ''}`}
+                className={`mobile-menu-btn ${!showMap && !isAboutUsOpen && !isHelpOpen ? 'active' : ''}`}
                 onClick={() => { 
                   setShowMap(false); 
                   if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+                  if (setIsHelpOpen) setIsHelpOpen(false);
                   if (setIsSignInOpen) setIsSignInOpen(false);
                   setIsMobileMenuOpen(false); 
                 }}
@@ -247,10 +263,11 @@ export default function CommonHeader({
               </button>
 
               <button 
-                className={`mobile-menu-btn ${showMap && !isAboutUsOpen ? 'active' : ''}`}
+                className={`mobile-menu-btn ${showMap && !isAboutUsOpen && !isHelpOpen ? 'active' : ''}`}
                 onClick={() => { 
                   setShowMap(true); 
                   if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+                  if (setIsHelpOpen) setIsHelpOpen(false);
                   if (setIsSignInOpen) setIsSignInOpen(false);
                   setIsMobileMenuOpen(false); 
                 }}
@@ -260,10 +277,11 @@ export default function CommonHeader({
               </button>
 
               <button 
-                className={`mobile-menu-btn ${!showMap && isAboutUsOpen ? 'active' : ''}`}
+                className={`mobile-menu-btn ${!showMap && isAboutUsOpen && !isHelpOpen ? 'active' : ''}`}
                 onClick={() => { 
                   setShowMap(false); 
                   if (setIsAboutUsOpen) setIsAboutUsOpen(true);
+                  if (setIsHelpOpen) setIsHelpOpen(false);
                   if (setIsSignInOpen) setIsSignInOpen(false);
                   setIsMobileMenuOpen(false); 
                 }}
@@ -323,11 +341,19 @@ export default function CommonHeader({
               </button>
 
               <button 
-                className="mobile-menu-btn"
-                onClick={() => { setIsMobileMenuOpen(false); showToast(lang === 'ar' ? 'وثائق المساعدة والدعم' : "Help & Support documentation"); }}
+                className={`mobile-menu-btn ${isHelpOpen ? 'active' : ''}`}
+                onClick={() => { 
+                  setIsMobileMenuOpen(false);
+                  if (setIsHelpOpen) {
+                    if (setIsAboutUsOpen) setIsAboutUsOpen(false);
+                    if (setIsSignInOpen) setIsSignInOpen(false);
+                    setShowMap(false);
+                    setIsHelpOpen(true);
+                  }
+                }}
               >
                 <img src={helpIcon} alt="Help" className="profile-item-icon" />
-                <span>{t.help}</span>
+                <span>{t.help || (lang === 'ar' ? 'المساعدة والدعم' : 'Help & Support')}</span>
               </button>
 
               <button 
