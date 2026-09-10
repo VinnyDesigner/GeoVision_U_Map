@@ -93,7 +93,7 @@ import {
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { authService } from './services/authService.js';
-import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, isPointInDrawnArea, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm, getDrawnAreaLabel } from './services/spatialSearchService.js';
+import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, isPointInDrawnArea, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm, getDrawnAreaLabel, resolveDistrictOrLandmark } from './services/spatialSearchService.js';
 import { calculateRoadRoute, getStartNavigationUrl, TRAVEL_MODES } from './services/routingService.js';
 import PrintModal from './components/PrintModal.jsx';
 import GeoVisionAnalyticsChart from './components/GeoVisionAnalyticsChart.jsx';
@@ -1135,13 +1135,7 @@ function App() {
 
   const [activeContextBadges, setActiveContextBadges] = useState([]);
   const [isContextPopoverOpen, setIsContextPopoverOpen] = useState(false);
-  const [realUserLocation, setRealUserLocation] = useState({
-    lat: 24.4539,
-    lon: 54.3773,
-    name: 'Current Location',
-    arabicName: 'موقعك الحالي',
-    isUserLocation: true
-  });
+  const [realUserLocation, setRealUserLocation] = useState(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isOrientingCompass, setIsOrientingCompass] = useState(false);
@@ -1167,7 +1161,8 @@ function App() {
             lon,
             name: 'Current Location',
             arabicName: 'موقعك الحالي',
-            isUserLocation: true
+            isUserLocation: true,
+            isRealGps: true
           };
           setRealUserLocation(userLocObj);
           setLocationPermissionDenied(false);
@@ -2367,194 +2362,16 @@ function App() {
         });
     let effectivePermDenied = locationPermissionDeniedOverride !== undefined ? locationPermissionDeniedOverride : locationPermissionDenied;
 
-    // Check if the query is a near-me / user-location intent (e.g. near me, nearest, closest, within x km)
-    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|\bnearest\b|\bclosest\b|my\s+location|current\s+location|from\s+me|of\s+me|within\s+\d+\s*(?:km|kilometer|meters?|m\b)|بجانبي|حولي|بالقرب\s*مني|(?:قريب|قريبة|القريب|القريبة)\s*مني|أقرب|الأقرب|موقعي|موقعي\s*الحالي|ضمن\s*\d+\s*كم|في\s*نطاق\s*\d+\s*كم|على\s*بعد\s*\d+\s*كم)/i.test(cleanQuery);
+    // Check if query has an explicit district / city / landmark specified
+    const qLower = cleanQuery.toLowerCase();
+    const isExplicitLocation = Boolean(
+      qLower.match(/\bin\s+(?:khalifa city|abu dhabi|al ain|yas island|saadiyat|reem|mussafah|dubai|sharjah|al dhafra)\b/i) ||
+      qLower.match(/\bفي\s+(?:مدينة خليفة|أبوظبي|العين|جزيرة ياس|السعديات|الريم|مصفح|دبي|الشارقة|الظفرة)\b/i) ||
+      resolveDistrictOrLandmark(qLower)
+    );
 
-    if (isNearMe && !userLocationOverride && typeof navigator !== 'undefined' && navigator.geolocation && !realUserLocation?.isRealGps) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
-            arabicName: 'موقعك الحالي',
-            isUserLocation: true,
-            isRealGps: true
-          };
-          setRealUserLocation(coords);
-          setLocationPermissionDenied(false);
-        },
-        (err) => {
-          console.warn('[GeoVision] Optional Geolocation access:', err?.message);
-        },
-        { timeout: 6000, enableHighAccuracy: true }
-      );
-    }
-
-    // Spatial GIS NLP Engine Processing with active Language Context
-    const engineRes = spatialAIEngineInstance.processNaturalLanguageQuery(cleanQuery, cleanCategory, lang, {
-      userLocation: effectiveUserLoc,
-      locationPermissionDenied: effectivePermDenied,
-      selectedLocation,
-      currentResults: activeSearchResults,
-      drawnArea: activeDrawnArea
-    });
-
-    // Execute natural-language application control actions against existing app state
-    if (engineRes.appActions && engineRes.appActions.length > 0) {
-      engineRes.appActions.forEach(action => {
-        switch (action.type) {
-          case 'CHANGE_THEME':
-            setTheme(action.theme);
-            break;
-          case 'CHANGE_LANGUAGE':
-            setLang(action.lang);
-            break;
-          case 'CHANGE_BASEMAP':
-            setActiveBasemap(action.basemap);
-            setActiveLeftPopover(null);
-            break;
-          case 'OPEN_BASEMAP_GALLERY':
-            setActiveLeftPopover('basemap');
-            break;
-          case 'ZOOM_IN':
-            if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
-            break;
-          case 'ZOOM_OUT':
-            if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
-            break;
-          case 'RESET_VIEW':
-            if (mapInstanceRef.current) mapInstanceRef.current.flyTo(action.center || [24.4539, 54.3773], action.zoom || 12);
-            break;
-          case 'FLY_TO':
-            if (mapInstanceRef.current && action.center) mapInstanceRef.current.flyTo(action.center, action.zoom || 14);
-            break;
-          case 'OPEN_LAYERS':
-            setIsSidebarOpen(true);
-            setActiveTab('categories');
-            break;
-          case 'TOGGLE_LAYER':
-            if (action.subcategories && action.subcategories.length > 0) {
-              setSelectedSubcategories(prev => {
-                const next = { ...prev };
-                action.subcategories.forEach(sub => {
-                  next[sub] = action.enabled;
-                });
-                return next;
-              });
-            } else if (action.category) {
-              const catObj = CATEGORY_TREE.find(c => c.name.toLowerCase() === action.category.toLowerCase() || c.id.toLowerCase() === action.category.toLowerCase());
-              if (catObj) {
-                setSelectedSubcategories(prev => {
-                  const next = { ...prev };
-                  catObj.subcategories.forEach(sub => {
-                    next[sub] = action.enabled;
-                  });
-                  return next;
-                });
-              } else {
-                setSelectedSubcategories(prev => ({
-                  ...prev,
-                  [action.category]: action.enabled
-                }));
-              }
-            }
-            break;
-          case 'OPEN_LEGEND':
-            setActiveLeftPopover('legend');
-            break;
-          case 'CLOSE_LEGEND':
-            setActiveLeftPopover(prev => prev === 'legend' ? null : prev);
-            break;
-          case 'TOGGLE_LEGEND':
-            setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend');
-            break;
-          case 'LOCATE_USER':
-            handleLocateUser();
-            break;
-          case 'OPEN_DRAW':
-            setActiveLeftPopover('draw');
-            break;
-          case 'SET_DRAW_TOOL':
-            setActiveDrawTool(action.tool);
-            setActiveLeftPopover(null);
-            break;
-          case 'PRINT_MAP':
-            openPrintDialog(action.options || { content: selectedLocation ? 'details' : (activeSearchResults.length > 0 ? 'results' : 'map') });
-            break;
-          default:
-            break;
-        }
-      });
-    }
-
-    // Check if query triggered Print & Export modal
-    if (engineRes.openPrintModal || engineRes.intent === 'print_export') {
-      openPrintDialog(engineRes.printConfig || {});
-    }
-
-    const results = engineRes.results || [];
-    if (engineRes.intent === 'route_directions' && engineRes.selectedFeature) {
-      setSelectedLocation({
-        ...engineRes.selectedFeature,
-        zoomTrigger: Date.now(),
-        locateTrigger: Date.now()
-      });
-      setActiveDetailTab('route');
-      setActiveSearchResults(results.length > 0 ? results : [engineRes.selectedFeature]);
-      handleCalculateRoute(engineRes.selectedFeature, 'car', false);
-      if (cleanCategory && !cleanQuery) {
-        setSelectedSubcategories({ [cleanCategory]: true });
-      } else if (cleanQuery) {
-        setSelectedSubcategories({});
-      }
-    } else if (engineRes.intent !== 'print_export' && engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action') {
-      setSelectedLocation(null);
-      setActiveRoute(null);
-      setIsNavigating(false);
-      setNavStepIndex(0);
-      const resultsWithArea = activeDrawnArea ? results.map(r => ({ ...r, drawnArea: activeDrawnArea })) : results;
-      setActiveSearchResults(resultsWithArea);
-      if (cleanCategory && !cleanQuery) {
-        setSelectedSubcategories({ [cleanCategory]: true });
-      } else if (cleanQuery) {
-        setSelectedSubcategories({});
-      }
-    } else if (engineRes.intent === 'app_control' || engineRes.intent === 'unsupported_app_action') {
-      // Preserve active search results if any were present
-      if (results.length > 0 && activeSearchResults.length === 0) {
-        setActiveSearchResults(results);
-      }
-    }
-    setActiveContextBadges(engineRes.contextBadges || []);
-
-    const tagLabel = cleanCategory || cleanQuery || 'All Locations';
-    if (engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action') {
-      setActiveSearchFilterTag({ query: cleanQuery, category: cleanCategory, label: tagLabel });
-    }
-    setShowMap(true);
-
-    const count = results.length;
-    addLog('AI Spatial Engine', `[${engineRes.intent.toUpperCase()}] ${engineRes.querySummary || `${count} matched`}`, 'success');
-
-    // Auto-save successful query to Saved Queries & History only for authenticated users and standard GIS queries
-    if (isLoggedIn && engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action') {
-      autoSaveSpatialQuery({
-        title: cleanQuery || cleanCategory,
-        category: cleanCategory || (results[0]?.category) || 'Spatial Search',
-        selectedSubcategories: selectedSubcategories,
-        spatialType: 'text',
-        resultsCount: count
-      });
-    }
-
-    if (engineRes.mapAction?.type === 'fly_to' && engineRes.mapAction.center && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo(engineRes.mapAction.center, engineRes.mapAction.zoom || 14);
-    } else if (engineRes.mapAction?.type === 'zoom_in' && mapInstanceRef.current) {
-      mapInstanceRef.current.zoomIn();
-    } else if (engineRes.mapAction?.type === 'zoom_out' && mapInstanceRef.current) {
-      mapInstanceRef.current.zoomOut();
-    }
+    // Check if the query is a near-me / user-location intent (e.g. near me, nearest, closest, within x km of me)
+    const isNearMe = !isExplicitLocation && /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|around\s+my\s+location|closest\s+to\s+me|closest\s+to\s+my\s+location|\bnearest\b|\bclosest\b|my\s+location|current\s+location|from\s+me|of\s+me|within\s+[\d.]+\s*(?:km|kilometer|meters?|m\b)|بجانبي|حولي|بالقرب\s*مني|(?:قريب|قريبة|القريب|القريبة)\s*مني|أقرب|الأقرب|موقعي|موقعي\s*الحالي|ضمن\s*[\d.]+\s*كم|في\s*نطاق\s*[\d.]+\s*كم|على\s*بعد\s*[\d.]+\s*كم)/i.test(cleanQuery);
 
     let userBubbleText = displayLabel || cleanQuery || cleanCategory;
     if (lang === 'ar') {
@@ -2590,28 +2407,238 @@ function App() {
       { sender: 'ai', isSearching: true, id: searchId, drawnArea: activeDrawnArea }
     ]);
 
-    setTimeout(() => {
-      setChatMessages(prev => prev.map(msg =>
-        msg.id === searchId
-          ? {
-            sender: 'ai',
-            text: cleanMarkdownText(engineRes.aiMessageText),
-            structuredResults: engineRes.structuredResults ? {
-              ...engineRes.structuredResults,
-              items: (engineRes.structuredResults.items || []).map(it => ({ ...it, drawnArea: activeDrawnArea }))
-            } : null,
-            clarification: engineRes.clarification || null,
-            analytics: engineRes.analytics || null,
-            isExpanded: true,
-            chips: engineRes.chips || [],
-            id: searchId,
-            drawnArea: activeDrawnArea
+    const executeSearchCore = (resolvedUserLoc, resolvedPermDenied) => {
+      // Spatial GIS NLP Engine Processing with active Language Context
+      const engineRes = spatialAIEngineInstance.processNaturalLanguageQuery(cleanQuery, cleanCategory, lang, {
+        userLocation: resolvedUserLoc,
+        locationPermissionDenied: resolvedPermDenied,
+        selectedLocation,
+        currentResults: activeSearchResults,
+        drawnArea: activeDrawnArea
+      });
+
+      // Execute natural-language application control actions against existing app state
+      if (engineRes.appActions && engineRes.appActions.length > 0) {
+        engineRes.appActions.forEach(action => {
+          switch (action.type) {
+            case 'CHANGE_THEME':
+              setTheme(action.theme);
+              break;
+            case 'CHANGE_LANGUAGE':
+              setLang(action.lang);
+              break;
+            case 'CHANGE_BASEMAP':
+              setActiveBasemap(action.basemap);
+              setActiveLeftPopover(null);
+              break;
+            case 'OPEN_BASEMAP_GALLERY':
+              setActiveLeftPopover('basemap');
+              break;
+            case 'ZOOM_IN':
+              if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
+              break;
+            case 'ZOOM_OUT':
+              if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
+              break;
+            case 'RESET_VIEW':
+              if (mapInstanceRef.current) mapInstanceRef.current.flyTo(action.center || [24.4539, 54.3773], action.zoom || 12);
+              break;
+            case 'FLY_TO':
+              if (mapInstanceRef.current && action.center) mapInstanceRef.current.flyTo(action.center, action.zoom || 14);
+              break;
+            case 'OPEN_LAYERS':
+              setIsSidebarOpen(true);
+              setActiveTab('categories');
+              break;
+            case 'TOGGLE_LAYER':
+              if (action.subcategories && action.subcategories.length > 0) {
+                setSelectedSubcategories(prev => {
+                  const next = { ...prev };
+                  action.subcategories.forEach(sub => {
+                    next[sub] = action.enabled;
+                  });
+                  return next;
+                });
+              } else if (action.category) {
+                const catObj = CATEGORY_TREE.find(c => c.name.toLowerCase() === action.category.toLowerCase() || c.id.toLowerCase() === action.category.toLowerCase());
+                if (catObj) {
+                  setSelectedSubcategories(prev => {
+                    const next = { ...prev };
+                    catObj.subcategories.forEach(sub => {
+                      next[sub] = action.enabled;
+                    });
+                    return next;
+                  });
+                } else {
+                  setSelectedSubcategories(prev => ({
+                    ...prev,
+                    [action.category]: action.enabled
+                  }));
+                }
+              }
+              break;
+            case 'OPEN_LEGEND':
+              setActiveLeftPopover('legend');
+              break;
+            case 'CLOSE_LEGEND':
+              setActiveLeftPopover(prev => prev === 'legend' ? null : prev);
+              break;
+            case 'TOGGLE_LEGEND':
+              setActiveLeftPopover(prev => prev === 'legend' ? null : 'legend');
+              break;
+            case 'LOCATE_USER':
+              handleLocateUser();
+              break;
+            case 'OPEN_DRAW':
+              setActiveLeftPopover('draw');
+              break;
+            case 'SET_DRAW_TOOL':
+              setActiveDrawTool(action.tool);
+              setActiveLeftPopover(null);
+              break;
+            case 'PRINT_MAP':
+              openPrintDialog(action.options || { content: selectedLocation ? 'details' : (activeSearchResults.length > 0 ? 'results' : 'map') });
+              break;
+            default:
+              break;
           }
-          : msg
-      ));
-      setClearVisualDrawnTrigger(Date.now());
-      setActiveDrawTool(null);
-    }, 450);
+        });
+      }
+
+      // Check if query triggered Print & Export modal
+      if (engineRes.openPrintModal || engineRes.intent === 'print_export') {
+        openPrintDialog(engineRes.printConfig || {});
+      }
+
+      const results = engineRes.results || [];
+      if (engineRes.intent === 'route_directions' && engineRes.selectedFeature) {
+        setSelectedLocation({
+          ...engineRes.selectedFeature,
+          zoomTrigger: Date.now(),
+          locateTrigger: Date.now()
+        });
+        setActiveDetailTab('route');
+        setActiveSearchResults(results.length > 0 ? results : [engineRes.selectedFeature]);
+        handleCalculateRoute(engineRes.selectedFeature, 'car', false);
+        if (cleanCategory && !cleanQuery) {
+          setSelectedSubcategories({ [cleanCategory]: true });
+        } else if (cleanQuery) {
+          setSelectedSubcategories({});
+        }
+      } else if (engineRes.intent !== 'print_export' && engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action' && engineRes.intent !== 'location_permission_required') {
+        setSelectedLocation(null);
+        setActiveRoute(null);
+        setIsNavigating(false);
+        setNavStepIndex(0);
+        const resultsWithArea = activeDrawnArea ? results.map(r => ({ ...r, drawnArea: activeDrawnArea })) : results;
+        setActiveSearchResults(resultsWithArea);
+        if (cleanCategory && !cleanQuery) {
+          setSelectedSubcategories({ [cleanCategory]: true });
+        } else if (cleanQuery) {
+          setSelectedSubcategories({});
+        }
+      } else if (engineRes.intent === 'location_permission_required') {
+        setActiveSearchResults([]);
+      } else if (engineRes.intent === 'app_control' || engineRes.intent === 'unsupported_app_action') {
+        if (results.length > 0 && activeSearchResults.length === 0) {
+          setActiveSearchResults(results);
+        }
+      }
+      setActiveContextBadges(engineRes.contextBadges || []);
+
+      const tagLabel = cleanCategory || cleanQuery || 'All Locations';
+      if (engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action' && engineRes.intent !== 'location_permission_required') {
+        setActiveSearchFilterTag({ query: cleanQuery, category: cleanCategory, label: tagLabel });
+      }
+      setShowMap(true);
+
+      const count = results.length;
+      addLog('AI Spatial Engine', `[${engineRes.intent.toUpperCase()}] ${engineRes.querySummary || `${count} matched`}`, 'success');
+
+      // Auto-save successful query to Saved Queries & History only for authenticated users and standard GIS queries
+      if (isLoggedIn && engineRes.intent !== 'app_control' && engineRes.intent !== 'unsupported_app_action' && engineRes.intent !== 'location_permission_required') {
+        autoSaveSpatialQuery({
+          title: cleanQuery || cleanCategory,
+          category: cleanCategory || (results[0]?.category) || 'Spatial Search',
+          selectedSubcategories: selectedSubcategories,
+          spatialType: 'text',
+          resultsCount: count
+        });
+      }
+
+      if (engineRes.mapAction?.type === 'fly_to' && engineRes.mapAction.center && mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo(engineRes.mapAction.center, engineRes.mapAction.zoom || 14);
+      } else if (engineRes.mapAction?.type === 'zoom_in' && mapInstanceRef.current) {
+        mapInstanceRef.current.zoomIn();
+      } else if (engineRes.mapAction?.type === 'zoom_out' && mapInstanceRef.current) {
+        mapInstanceRef.current.zoomOut();
+      }
+
+      setTimeout(() => {
+        setChatMessages(prev => prev.map(msg =>
+          msg.id === searchId
+            ? {
+              sender: 'ai',
+              text: cleanMarkdownText(engineRes.aiMessageText),
+              structuredResults: engineRes.structuredResults ? {
+                ...engineRes.structuredResults,
+                items: (engineRes.structuredResults.items || []).map(it => ({ ...it, drawnArea: activeDrawnArea }))
+              } : null,
+              clarification: engineRes.clarification || null,
+              analytics: engineRes.analytics || null,
+              isExpanded: true,
+              chips: engineRes.chips || [],
+              id: searchId,
+              drawnArea: activeDrawnArea
+            }
+            : msg
+        ));
+        setClearVisualDrawnTrigger(Date.now());
+        setActiveDrawTool(null);
+      }, 450);
+    };
+
+    if (isNearMe && !userLocationOverride && !realUserLocation?.isRealGps && !effectivePermDenied && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
+            arabicName: 'موقعك الحالي',
+            isUserLocation: true,
+            isRealGps: true
+          };
+          setRealUserLocation(coords);
+          setLocationPermissionDenied(false);
+          // Automatically continue the original query with device coordinates
+          executeSearchCore(coords, false);
+        },
+        (err) => {
+          console.warn('[GeoVision] Geolocation access prompt:', err?.message);
+          if (err && err.code === 1) {
+            // Permission Denied
+            setLocationPermissionDenied(true);
+            executeSearchCore(null, true);
+          } else {
+            // Fallback for desktops / test environments without GPS hardware
+            const fallbackLoc = {
+              lat: 24.4539,
+              lon: 54.3773,
+              name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
+              arabicName: 'موقعك الحالي',
+              isUserLocation: true,
+              isRealGps: false
+            };
+            setRealUserLocation(fallbackLoc);
+            executeSearchCore(fallbackLoc, false);
+          }
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    } else {
+      executeSearchCore(effectiveUserLoc, effectivePermDenied);
+    }
   };
 
   const handleRunEditedQuery = (newQueryText, msgIdx) => {

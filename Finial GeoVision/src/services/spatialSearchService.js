@@ -7707,6 +7707,31 @@ class SpatialAIEngine {
       this.context.locationCoordinates = null;
     }
 
+    if (isNearMeIntent && options.locationPermissionDenied) {
+      const explicitDist = resolveDistrictOrLandmark(qLower);
+      if (!explicitDist) {
+        return {
+          intent: 'location_permission_required',
+          querySummary: lang === 'ar' ? 'يلزم إذن الوصول إلى الموقع' : 'Location access required',
+          aiMessageText: lang === 'ar'
+            ? 'يلزم إذن الوصول إلى الموقع للبحث عن الأماكن القريبة منك. يرجى تفعيل إذن الموقع والمحاولة مرة أخرى.'
+            : 'Location access is required to find places near you. Please allow location access and try again.',
+          results: [],
+          contextBadges: [],
+          chips: [
+            {
+              label: lang === 'ar' ? 'إعادة طلب الموقع' : 'Retry Location Access',
+              action: 'request_location',
+              pendingQuery: rawQuery,
+              query: rawQuery
+            }
+          ],
+          structuredGISQuery: { intent: 'near_me', status: 'permission_denied' },
+          mapAction: null
+        };
+      }
+    }
+
     if (options.context) {
       Object.assign(this.context, options.context);
     }
