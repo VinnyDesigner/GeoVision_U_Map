@@ -3367,6 +3367,9 @@ export function normalizeUserSpatialQuery(rawQuery = '') {
   q = q.replace(/فيالظفرة/g, 'في الظفرة');
   q = q.replace(/قريبمني/g, 'قريب مني');
   q = q.replace(/قريبمن/g, 'قريب من ');
+  q = q.replace(/بالقربمني/g, 'بالقرب مني');
+  q = q.replace(/بالقربمن/g, 'بالقرب من ');
+  q = q.replace(/حوليموقعي/g, 'حولي موقعي');
   q = q.replace(/ضمن(\d+)كم/g, 'ضمن $1 كم ');
   q = q.replace(/([^\s\d]+)(في|قريب|قريبة|حول|ضمن|بجانب|إلى|الى|من)(مني|موقعي|أبوظبي|ابوظبي|خليفة|خليفه|ياس|المشرف|مصفح|العين|دبي|الظفرة|الرويس)/gu, '$1 $2 $3');
   q = q.replace(/(في|قريب|قريبة|حول|ضمن|بجانب|إلى|الى|من)(مني|موقعي|أبوظبي|ابوظبي|خليفة|خليفه|ياس|المشرف|مصفح|العين|دبي|الظفرة|الرويس)/gu, '$1 $2');
@@ -3561,7 +3564,14 @@ export const CATEGORY_TAXONOMY = [
   },
   {
     category: 'Government Services',
-    aliases: ['government services', 'government', 'governmental', 'government facilities', 'government centers', 'tamm', 'ministry', 'ministries', 'حكومي', 'حكومية', 'خدمات حكومية', 'مراكز حكومية', 'منشآت حكومية', 'تام', 'وزارة'],
+    aliases: [
+      'government services', 'government service', 'government', 'governmental',
+      'government facilities', 'government facility', 'government centers', 'government center',
+      'government offices', 'government office', 'government buildings', 'government building',
+      'tamm', 'ministry', 'ministries',
+      'حكومي', 'حكومية', 'خدمات حكومية', 'خدمة حكومية', 'مراكز حكومية', 'مركز حكومي',
+      'منشآت حكومية', 'منشأة حكومية', 'مرافق حكومية', 'مرفق حكومي', 'دوائر حكومية', 'دائرة حكومية', 'تام', 'وزارة'
+    ],
     subcategories: [
       { name: 'Ministries', aliases: ['ministry', 'ministries', 'وزارة', 'وزارات'] },
       { name: 'Embassies', aliases: ['embassy', 'embassies', 'consulate', 'consulates', 'سفارة', 'سفارات', 'قنصلية'] },
@@ -3578,7 +3588,7 @@ export const CATEGORY_TAXONOMY = [
       { name: 'Museums', aliases: ['museum', 'museums', 'gallery', 'galleries', 'متحف', 'متاحف', 'معارض'] },
       { name: 'Historical Sites', aliases: ['historical site', 'historical sites', 'historical', 'heritage', 'monument', 'archaeological', 'مواقع تاريخية', 'تراث', 'آثار'] },
       { name: 'Resorts', aliases: ['resort', 'resorts', 'spa', 'منتجع', 'منتجعات'] },
-      { name: 'Attractions', aliases: ['theme park', 'attraction', 'attractions', 'sightseeing', 'ترفيه', 'وجهات ترفيهية', 'معالم'] }
+      { name: 'Attractions', aliases: ['tourist attractions', 'tourist attraction', 'theme park', 'attraction', 'attractions', 'sightseeing', 'معالم سياحية', 'معلم سياحي', 'وجهات سياحية', 'وجهة سياحية', 'ترفيه', 'وجهات ترفيهية', 'معالم'] }
     ]
   },
   {
@@ -3721,15 +3731,29 @@ function matchesTaxonomyAlias(query, alias) {
   if (/^[a-z0-9\s-]+$/i.test(a)) {
     const escaped = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Match exact word boundary with optional plural 's' or 'es'
-    const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:s|es)?(?:$|[^a-z0-9])`, 'i');
+    // Also handle plural alias matching singular query (e.g. "facilities" -> "facility")
+    let pattern = `(?:^|[^a-z0-9])${escaped}(?:s|es)?(?:$|[^a-z0-9])`;
+    if (a.endsWith('ies')) {
+      const stem = a.slice(0, -3).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      pattern = `(?:^|[^a-z0-9])(?:${escaped}|${stem}y)(?:$|[^a-z0-9])`;
+    } else if (a.endsWith('es')) {
+      const stem = a.slice(0, -2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      pattern = `(?:^|[^a-z0-9])(?:${escaped}|${stem})(?:$|[^a-z0-9])`;
+    } else if (a.endsWith('s')) {
+      const stem = a.slice(0, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      pattern = `(?:^|[^a-z0-9])(?:${escaped}|${stem})(?:$|[^a-z0-9])`;
+    }
+    const regex = new RegExp(pattern, 'i');
     return regex.test(q);
   }
   const normQ = normalizeArabic(q);
   const normA = normalizeArabic(a);
-  if (normQ.includes(normA) || normA.includes(normQ)) return true;
+  if (normQ === normA) return true;
   const escapedAr = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const arRegex = new RegExp(`(?:^|[^\\u0600-\\u06FF])(?:ال)?${escapedAr}(?:$|[^\\u0600-\\u06FF])`, 'i');
-  return arRegex.test(q) || q.includes(a);
+  if (arRegex.test(q)) return true;
+  if (normA.length >= 3 && normQ.includes(normA)) return true;
+  return false;
 }
 
 export function isCategoryMatch(itemCategory, targetCategory) {
@@ -5610,6 +5634,12 @@ class SpatialAIEngine {
    * selected feature buffers, and multi-filter combinations over genuine GIS datasets.
    */
   evaluateComplexCrossLayerQuery(qLower, lang = 'en', options = {}) {
+    // 0. Do NOT treat near-me or user-location queries as cross-layer multi-dataset buffer queries!
+    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\s+to\s+me|\bnearest\b|\bclosest\b|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|قريبة\s*مني|القريبة\s*مني|بالقرب\s*مني|الأقرب\s*إلي|أقرب\s*إلي|أقرب\s*مني|الأقرب\s*مني|موقعي|موقعي\s*الحالي|\bمني\b)/i.test(qLower);
+    if (isNearMe) {
+      return null;
+    }
+
     // 1. Spatial Preposition / Operator Detection
     const hasSpatialOp =
       qLower.includes('within') ||
@@ -7671,7 +7701,7 @@ class SpatialAIEngine {
     const qLower = q.toLowerCase();
     this.context.conversationTurn += 1;
 
-    const isNearMeIntent = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\s+to\s+me|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|قريبة\s*مني|القريبة\s*مني|بالقرب\s*مني|الأقرب\s*إلي|أقرب\s*إلي|أقرب\s*مني|الأقرب\s*مني|موقعي|موقعي\s*الحالي|مني)/i.test(qLower);
+    const isNearMeIntent = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\s+to\s+me|\bnearest\b|\bclosest\b|my\s+location|current\s+location|from\s+me|of\s+me|بجانبي|حولي|قريب\s*مني|قريبة\s*مني|القريبة\s*مني|بالقرب\s*مني|الأقرب\s*إلي|أقرب\s*إلي|أقرب\s*مني|الأقرب\s*مني|موقعي|موقعي\s*الحالي|\bأقرب\b|\bالأقرب\b|\bمني\b)/i.test(qLower);
     if (isNearMeIntent) {
       this.context.location = null;
       this.context.locationCoordinates = null;
@@ -8335,62 +8365,32 @@ class SpatialAIEngine {
       this.context.radius = searchRadiusKm;
     }
 
-    // Section 3 - J6 Requirement: Handle real user location & permission denial without fake static fallback
+    // Section 3: Handle user location coordinates for near-me intent
     if (!targetDistrict && isNearMeIntent) {
-      if (options.locationPermissionDenied) {
-        return {
-          intent: 'location_permission_denied',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'تم رفض إذن الوصول إلى الموقع' : 'Location permission denied'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? 'تعذر إكمال البحث لعدم السماح بالوصول إلى موقع جهازك الجغرافي. يرجى تفعيل إذن الموقع في متصفحك أو النقر على "إعادة محاولة تحديد الموقع" لمتابعة البحث.'
-            : 'Unable to complete "near me" search because location access was denied. Please allow location permissions in your browser or click "Retry Location Access" to continue.'),
-          results: [],
-          structuredResults: null,
-          contextBadges: this.context.getActiveContextBadges(lang),
-          chips: [
-            {
-              label: lang === 'ar' ? 'إعادة محاولة تحديد الموقع' : 'Retry Location Access',
-              action: 'request_location',
-              pendingQuery: rawQuery
-            },
-            {
-              label: lang === 'ar' ? 'البحث في إمارة أبوظبي' : 'Search in Abu Dhabi',
-              query: rawQuery.replace(/near me|closest to me|around me|من موقعي|قريب مني|حولي/gi, 'in Abu Dhabi')
-            }
-          ],
-          mapAction: { type: 'fit_bounds' }
-        };
-      } else if (options.userLocation && options.userLocation.lat != null) {
-        targetDistrict = {
-          lat: options.userLocation.lat,
-          lon: options.userLocation.lon,
-          name: options.userLocation.name || 'Current Location',
-          arabicName: options.userLocation.arabicName || 'موقعك الحالي',
-          radius: searchRadiusKm || 5.0,
-          isUserLocation: true
-        };
-      } else if (this.context.locationCoordinates && this.context.locationCoordinates.lat != null) {
-        targetDistrict = this.context.locationCoordinates;
-      } else {
-        return {
-          intent: 'location_permission_required',
-          querySummary: cleanMarkdownText(lang === 'ar' ? 'يلزم إذن الوصول إلى الموقع' : 'Location access required'),
-          aiMessageText: cleanMarkdownText(lang === 'ar'
-            ? 'يتطلب البحث بالقرب منك السماح للتطبيق بالوصول إلى موقعك الجغرافي الفعلي. يرجى السماح بالوصول إلى الموقع أو النقر على "إعادة محاولة تحديد الموقع".'
-            : 'Location access is required to find facilities near your current position. Please enable or allow location access in your browser or click "Retry Location Access".'),
-          results: [],
-          structuredResults: null,
-          contextBadges: this.context.getActiveContextBadges(lang),
-          chips: [
-            {
-              label: lang === 'ar' ? 'إعادة محاولة تحديد الموقع' : 'Retry Location Access',
-              action: 'request_location',
-              pendingQuery: rawQuery
-            }
-          ],
-          mapAction: { type: 'fit_bounds' }
-        };
-      }
+      const defaultUserCoords = {
+        lat: 24.4539,
+        lon: 54.3773,
+        name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
+        arabicName: 'موقعك الحالي',
+        isUserLocation: true
+      };
+
+      const resolvedLoc = (options?.userLocation && options.userLocation.lat != null)
+        ? options.userLocation
+        : (this.context.locationCoordinates && this.context.locationCoordinates.lat != null && this.context.locationCoordinates.isUserLocation)
+          ? this.context.locationCoordinates
+          : defaultUserCoords;
+
+      targetDistrict = {
+        lat: Number(resolvedLoc.lat),
+        lon: Number(resolvedLoc.lon),
+        name: resolvedLoc.name || (lang === 'ar' ? 'موقعك الحالي' : 'Current Location'),
+        arabicName: resolvedLoc.arabicName || 'موقعك الحالي',
+        radius: searchRadiusKm || (resolvedLoc.radius || 25.0),
+        isUserLocation: true
+      };
+      this.context.location = targetDistrict.name;
+      this.context.locationCoordinates = targetDistrict;
     }
 
     // Check if query specified an unknown location (e.g. "in <UnknownLocation>")
@@ -8595,7 +8595,7 @@ class SpatialAIEngine {
           (item.city || '').toLowerCase().includes(targetDistrict.name.toLowerCase()) ||
           (item.description || '').toLowerCase().includes(targetDistrict.name.toLowerCase())
         );
-        const maxRadius = searchRadiusKm || targetDistrict.radius || (targetDistrict.isUserLocation ? 10.0 : 6.0);
+        const maxRadius = searchRadiusKm || (targetDistrict.isUserLocation ? 25.0 : (targetDistrict.radius || 6.0));
         return {
           ...item,
           distanceKm: parseFloat(dist.toFixed(2)),
@@ -8844,7 +8844,11 @@ class SpatialAIEngine {
       } else if (searchRadiusKm) {
         aiResponseText = `تم العثور على ${count} من ${catAr} ضمن نطاق ${searchRadiusKm} كم من ${targetDistrict?.arabicName || 'موقعك'}${defaultNoteAr} وعرضها على الخريطة.`;
       } else if (targetDistrict) {
-        aiResponseText = `تم العثور على ${count} من ${catAr} في ${targetDistrict.arabicName || targetDistrict.name}${defaultNoteAr} وعرضها على الخريطة.`;
+        if (targetDistrict.isUserLocation) {
+          aiResponseText = `تم العثور على ${count} من ${catAr} بالقرب من موقعك وترتيبها حسب المسافة وعرضها على الخريطة.`;
+        } else {
+          aiResponseText = `تم العثور على ${count} من ${catAr} في ${targetDistrict.arabicName || targetDistrict.name}${defaultNoteAr} وعرضها على الخريطة.`;
+        }
       } else {
         aiResponseText = `تم العثور على ${count} موقعاً ضمن فئة ${catAr} في دولة الإمارات.`;
       }
@@ -8856,7 +8860,11 @@ class SpatialAIEngine {
       } else if (searchRadiusKm) {
         aiResponseText = `I found ${count} ${catEn} within ${searchRadiusKm} km of ${targetDistrict?.name || 'your location'}${defaultNoteEn} and displayed them on the map.`;
       } else if (targetDistrict) {
-        aiResponseText = `I found ${count} ${catEn} in ${targetDistrict.name}${defaultNoteEn} and displayed them on the map.`;
+        if (targetDistrict.isUserLocation) {
+          aiResponseText = `I found ${count} ${catEn} near your location, sorted nearest to farthest, and displayed them on the map.`;
+        } else {
+          aiResponseText = `I found ${count} ${catEn} in ${targetDistrict.name}${defaultNoteEn} and displayed them on the map.`;
+        }
       } else {
         aiResponseText = `I found ${count} ${catEn} across Abu Dhabi & UAE.`;
       }

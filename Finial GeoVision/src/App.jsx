@@ -1135,7 +1135,13 @@ function App() {
 
   const [activeContextBadges, setActiveContextBadges] = useState([]);
   const [isContextPopoverOpen, setIsContextPopoverOpen] = useState(false);
-  const [realUserLocation, setRealUserLocation] = useState(null);
+  const [realUserLocation, setRealUserLocation] = useState({
+    lat: 24.4539,
+    lon: 54.3773,
+    name: 'Current Location',
+    arabicName: 'موقعك الحالي',
+    isUserLocation: true
+  });
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isOrientingCompass, setIsOrientingCompass] = useState(false);
@@ -2350,41 +2356,39 @@ function App() {
     }
 
     // Determine user location coordinates
-    let effectiveUserLoc = userLocationOverride !== undefined ? userLocationOverride : realUserLocation;
+    let effectiveUserLoc = userLocationOverride !== undefined
+      ? userLocationOverride
+      : (realUserLocation || {
+          lat: 24.4539,
+          lon: 54.3773,
+          name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
+          arabicName: 'موقعك الحالي',
+          isUserLocation: true
+        });
     let effectivePermDenied = locationPermissionDeniedOverride !== undefined ? locationPermissionDeniedOverride : locationPermissionDenied;
 
-    // Check if the query is a near-me / user-location intent (e.g. near me, nearest, closest, within x km) without prior location or permission
-    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|nearest\b|closest\b|my\s+location|current\s+location|from\s+me|of\s+me|within\s+\d+\s*(?:km|kilometer|meters?|m\b)|بجانبي|حولي|بالقرب\s*مني|(?:قريب|قريبة|القريب|القريبة)\s*مني|أقرب|الأقرب|موقعي|موقعي\s*الحالي|ضمن\s*\d+\s*كم|في\s*نطاق\s*\d+\s*كم|على\s*بعد\s*\d+\s*كم)/i.test(cleanQuery);
+    // Check if the query is a near-me / user-location intent (e.g. near me, nearest, closest, within x km)
+    const isNearMe = /(?:near(?:by)?(?:\s+to)?\s+me|around\s+me|closest\s+to\s+me|\bnearest\b|\bclosest\b|my\s+location|current\s+location|from\s+me|of\s+me|within\s+\d+\s*(?:km|kilometer|meters?|m\b)|بجانبي|حولي|بالقرب\s*مني|(?:قريب|قريبة|القريب|القريبة)\s*مني|أقرب|الأقرب|موقعي|موقعي\s*الحالي|ضمن\s*\d+\s*كم|في\s*نطاق\s*\d+\s*كم|على\s*بعد\s*\d+\s*كم)/i.test(cleanQuery);
 
-    if (isNearMe && !effectiveUserLoc && !effectivePermDenied && typeof navigator !== 'undefined' && navigator.geolocation) {
+    if (isNearMe && !userLocationOverride && typeof navigator !== 'undefined' && navigator.geolocation && !realUserLocation?.isRealGps) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const coords = {
             lat: pos.coords.latitude,
             lon: pos.coords.longitude,
             name: lang === 'ar' ? 'موقعك الحالي' : 'Current Location',
-            arabicName: 'موقعك الحالي'
+            arabicName: 'موقعك الحالي',
+            isUserLocation: true,
+            isRealGps: true
           };
           setRealUserLocation(coords);
           setLocationPermissionDenied(false);
-          handleUnifiedSearch({ ...searchOptions, userLocationOverride: coords, locationPermissionDeniedOverride: false });
         },
         (err) => {
-          console.warn('[GeoVision] Geolocation denied or unavailable:', err?.message);
-          const defaultCoords = {
-            lat: 24.4539,
-            lon: 54.3773,
-            name: lang === 'ar' ? 'مركز أبوظبي (افتراضي)' : 'Abu Dhabi Center (Default)',
-            arabicName: 'مركز أبوظبي (افتراضي)',
-            isDefault: true
-          };
-          setRealUserLocation(defaultCoords);
-          setLocationPermissionDenied(true);
-          handleUnifiedSearch({ ...searchOptions, userLocationOverride: defaultCoords, locationPermissionDeniedOverride: true });
+          console.warn('[GeoVision] Optional Geolocation access:', err?.message);
         },
-        { timeout: 10000, enableHighAccuracy: true }
+        { timeout: 6000, enableHighAccuracy: true }
       );
-      return;
     }
 
     // Spatial GIS NLP Engine Processing with active Language Context
