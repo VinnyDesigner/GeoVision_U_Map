@@ -607,7 +607,11 @@ export default function LandingPage({
                   className="landing-search-container"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    handleSearchSubmit();
+                    if (searchQuery.trim()) {
+                      const q = searchQuery.trim();
+                      if (setSearchQuery) setSearchQuery('');
+                      handleSearchSubmit(q);
+                    }
                   }}
                 >
                   {/* Sparkle Icon with spinning loader effect */}
@@ -625,6 +629,16 @@ export default function LandingPage({
                     placeholder={t.searchPlaceholder || 'Ask Smart Map Anything...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (searchQuery.trim()) {
+                          const q = searchQuery.trim();
+                          if (setSearchQuery) setSearchQuery('');
+                          handleSearchSubmit(q);
+                        }
+                      }
+                    }}
                   />
 
                   {/* Pill-shaped Search Button */}

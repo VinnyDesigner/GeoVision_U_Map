@@ -92,7 +92,7 @@ import {
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { authService } from './services/authService.js';
-import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm, getDrawnAreaLabel } from './services/spatialSearchService.js';
+import { spatialAIEngineInstance, searchSpatialData, GEOVISION_SPATIAL_DATASET, executeDrawnAreaSpatialQuery, isPointInDrawnArea, cleanMarkdownText, isCategoryMatch, isSubcategoryMatch, calculateDistanceKm, getDrawnAreaLabel } from './services/spatialSearchService.js';
 import { calculateRoadRoute, getStartNavigationUrl, TRAVEL_MODES } from './services/routingService.js';
 import PrintModal from './components/PrintModal.jsx';
 import GeoVisionAnalyticsChart from './components/GeoVisionAnalyticsChart.jsx';
@@ -203,6 +203,7 @@ function App() {
   const [isDetailsMinimized, setIsDetailsMinimized] = useState(false);
   const [lastDrawnQuery, setLastDrawnQuery] = useState(null);
   const [searchBoxDrawnAttachment, setSearchBoxDrawnAttachment] = useState(null);
+  const [clearVisualDrawnTrigger, setClearVisualDrawnTrigger] = useState(0);
 
   // In-App Road Route & Multi-Modal Navigation States
   const [activeRoute, setActiveRoute] = useState(null);
@@ -1084,8 +1085,8 @@ function App() {
     id: 'welcome-init',
     sender: 'ai',
     text: lang === 'ar'
-      ? 'مرحباً! أنا المساعد المكاني الذكي لمنصة GeoVision. يمكنني مساعدتك في استكشاف وتحليل البيانات المكانية الشاملة في إمارة أبوظبي ودولة الإمارات — كالحدائق، محطات النقل والحافلات، مؤشرات البيئة والانبعاثات، المراكز الحكومية، المنشآت الصناعية، شبكات الطاقة، المعالم الثقافية، بالإضافة إلى الرعاية الصحية والتعليم. جرب أحد الاقتراحات المتنوعة أدناه أو اكتب استفسارك مباشرة.'
-      : 'Hi! I am your GeoVision GIS Assistant. I can help you search, filter, and analyze spatial datasets across Abu Dhabi and UAE — including parks, transport & bus stations, environment & emissions, government centers, industrial facilities, utilities, cultural landmarks, healthcare, and education. Try one of the diverse suggestions below or ask a question directly.',
+      ? 'مرحباً! أنا المساعد المكاني الذكي لمنصة GeoVision. يمكنني مساعدتك في استكشاف وتحليل البيانات المكانية الشاملة في إمارة أبوظبي ودولة الإمارات — كالحدائق، محطات النقل والحافلات، مؤشرات البيئة والانبعاثات، المراكز الحكومية، المنشآت الصناعية، شبكات الطاقة، المعالم الثقافية، والمباني التجارية. جرب أحد الاقتراحات المتنوعة أدناه أو اكتب استفسارك مباشرة.'
+      : 'Hi! I am your GeoVision GIS Assistant. I can help you search, filter, and analyze spatial datasets across Abu Dhabi and UAE — including parks, transport & bus stations, environment & emissions, government centers, industrial facilities, utilities, cultural landmarks, and commercial buildings. Try one of the diverse suggestions below or ask a question directly.',
     chips: getDynamicQuickStartChips(rotationIdx)
   });
 
@@ -1379,6 +1380,12 @@ function App() {
   const handleNewChat = () => {
     setAiPanelSubView('chat');
     spatialAIEngineInstance.resetContext();
+    spatialAIEngineInstance.clearDrawnAreaContext();
+    setLastDrawnQuery(null);
+    setRestoredDrawnGeometry(null);
+    setSearchBoxDrawnAttachment(null);
+    setActiveDrawTool(null);
+    setClearVisualDrawnTrigger(Date.now());
     setActiveContextBadges([]);
     setIsContextPopoverOpen(false);
     const nextRotation = (promptRotationIndex + 1) % 3;
@@ -1400,6 +1407,12 @@ function App() {
 
   const handleClearAllContext = () => {
     spatialAIEngineInstance.resetContext();
+    spatialAIEngineInstance.clearDrawnAreaContext();
+    setLastDrawnQuery(null);
+    setRestoredDrawnGeometry(null);
+    setSearchBoxDrawnAttachment(null);
+    setActiveDrawTool(null);
+    setClearVisualDrawnTrigger(Date.now());
     setActiveContextBadges([]);
     setIsContextPopoverOpen(false);
     const nextRotation = (promptRotationIndex + 1) % 3;
@@ -1603,11 +1616,13 @@ function App() {
     setActiveRoute(null);
     setIsNavigating(false);
     setNavStepIndex(0);
-    setLastDrawnQuery(null);
+    setLastDrawnQuery(drawData);
+    spatialAIEngineInstance.setDrawnAreaContext(drawData);
 
     // If restoring from saved query or history with shouldExecuteImmediately = true
     if (shouldExecuteImmediately) {
       setLastDrawnQuery(drawData);
+      spatialAIEngineInstance.setDrawnAreaContext(drawData);
       const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
       const queryResult = executeDrawnAreaSpatialQuery({
         ...drawData,
@@ -1680,23 +1695,47 @@ function App() {
     setAiState('panel');
     if (panelHeight <= 100) setPanelHeight(280);
 
-    // Reset chat messages to an awaiting-query state with ZERO results and clear guidance
-    setChatMessages([
-      {
-        id: 'drawn-awaiting-query',
-        sender: 'ai',
-        text: lang === 'ar'
-          ? `تم تحديد ${getDrawnAreaLabel(drawData, lang)} كحد جغرافي.\n\nاكتب استفسارك في الأسفل واضغط **Enter** لتنفيذ البحث داخل هذه المنطقة.`
-          : `Spatial boundary set: **${getDrawnAreaLabel(drawData, 'en')}**.\n\nType your query in the search bar below and press **Enter** to search within this area.`,
-        chips: [
-          { label: lang === 'ar' ? 'جميع المعالم' : 'All Features', query: 'All places' },
-          { label: lang === 'ar' ? 'المستشفيات' : 'Hospitals', query: 'Hospitals' },
-          { label: lang === 'ar' ? 'المدارس' : 'Schools', query: 'Schools' },
-          { label: lang === 'ar' ? 'المباني التجارية' : 'Commercial Buildings', query: 'Commercial Buildings' },
-          { label: lang === 'ar' ? 'الحدائق' : 'Parks', query: 'Parks' }
-        ]
+    // Continue conversation if in the middle of a chat; do NOT reset or start a new chat!
+    setChatMessages(prev => {
+      if (!prev || prev.length === 0 || (prev.length === 1 && prev[0].id === 'welcome-init')) {
+        return [
+          {
+            id: 'drawn-awaiting-query',
+            sender: 'ai',
+            text: lang === 'ar'
+              ? `تم تحديد ${getDrawnAreaLabel(drawData, lang)} كحد جغرافي.\n\nاكتب استفسارك في الأسفل واضغط **Enter** لتنفيذ البحث داخل هذه المنطقة.`
+              : `Spatial boundary set: **${getDrawnAreaLabel(drawData, 'en')}**.\n\nType your query in the search bar below and press **Enter** to search within this area.`,
+            chips: [
+              { label: lang === 'ar' ? 'جميع المعالم' : 'All Features', query: 'All places' },
+              { label: lang === 'ar' ? 'المراكز الحكومية' : 'Government Facilities', query: 'Government Facilities' },
+              { label: lang === 'ar' ? 'مرافق النقل' : 'Transport Facilities', query: 'Transport Facilities' },
+              { label: lang === 'ar' ? 'المرافق البيئية' : 'Environmental Facilities', query: 'Environmental Facilities' },
+              { label: lang === 'ar' ? 'المنشآت الصناعية' : 'Industrial Facilities', query: 'Industrial Facilities' },
+              { label: lang === 'ar' ? 'المباني التجارية' : 'Commercial Buildings', query: 'Commercial Buildings' },
+              { label: lang === 'ar' ? 'الحدائق' : 'Parks', query: 'Parks' }
+            ]
+          }
+        ];
       }
-    ]);
+
+      // Middle of an active chat: PRESERVE entire existing conversation history!
+      return [
+        ...prev,
+        {
+          id: `drawn-boundary-update-${Date.now()}`,
+          sender: 'ai',
+          text: lang === 'ar'
+            ? `تم تحديث النطاق الجغرافي: **${getDrawnAreaLabel(drawData, lang)}**.\n\nيمكنك مواصلة المحادثة والاستفسار عن المعالم داخل هذه المنطقة.`
+            : `Active spatial boundary set to **${getDrawnAreaLabel(drawData, 'en')}**.\n\nYou can continue your conversation and ask queries for this area.`,
+          chips: [
+            { label: lang === 'ar' ? 'جميع المعالم في المنطقة' : 'All Features in this area', query: 'All places in this area' },
+            { label: lang === 'ar' ? 'المراكز الحكومية في المنطقة' : 'Government Facilities in this area', query: 'Show government facilities in this area' },
+            { label: lang === 'ar' ? 'المباني التجارية في المنطقة' : 'Commercial Buildings in this area', query: 'Show commercial buildings in this area' },
+            { label: lang === 'ar' ? 'الحدائق في المنطقة' : 'Parks in this area', query: 'Show parks in this area' }
+          ]
+        }
+      ];
+    });
 
     showToast(lang === 'ar' ? 'تم تحديد النطاق كحد جغرافي. اكتب استفسارك واضغط Enter' : 'Drawn area set as spatial boundary. Type your query and press Enter');
   };
@@ -1705,13 +1744,9 @@ function App() {
     setLastDrawnQuery(null);
     setSearchBoxDrawnAttachment(null);
     setRestoredDrawnGeometry(null);
+    setActiveDrawTool(null);
+    setClearVisualDrawnTrigger(Date.now());
     spatialAIEngineInstance.clearDrawnAreaContext();
-    setActiveSearchResults([]);
-    setActiveSearchFilterTag(null);
-    setSelectedLocation(null);
-    setActiveRoute(null);
-    setIsNavigating(false);
-    setNavStepIndex(0);
     addLog('AI Spatial Engine', 'Spatial query area cleared', 'info');
   };
 
@@ -2162,91 +2197,128 @@ function App() {
     const cleanQuery = typeof query === 'string' ? query.trim() : '';
     const cleanCategory = typeof category === 'string' ? category.trim() : '';
 
+    // RULE: Clear search inputs immediately after submission so input returns to placeholder
+    setAiSearchQuery('');
+    setSearchQuery('');
+
     // Check if an active drawn spatial boundary is attached to this query
-    const activeDrawnArea = searchOptions.drawnArea || searchBoxDrawnAttachment || lastDrawnQuery || null;
+    let activeDrawnArea = searchOptions.drawnArea || searchBoxDrawnAttachment || null;
+    if (!activeDrawnArea && lastDrawnQuery && cleanQuery) {
+      const qLower = cleanQuery.toLowerCase();
+      const isAreaFollowUp = qLower.includes('this area') || qLower.includes('the area') || qLower.includes('here') ||
+        qLower.includes('inside') || qLower.includes('within') || qLower.includes('selected area') || qLower.includes('drawn area') ||
+        qLower.includes('in area') || qLower.includes('هذه المنطقة') || qLower.includes('المنطقة المحددة') || qLower.includes('هنا') || qLower.includes('داخل') ||
+        qLower.includes('closest') || qLower.includes('nearest') || qLower.includes('which one') || qLower.includes('الأقرب') || qLower.includes('أيهم') ||
+        qLower.includes('top rated in') || qLower.includes('higher rating');
+      if (isAreaFollowUp) {
+        activeDrawnArea = lastDrawnQuery;
+      }
+    }
+
     if (activeDrawnArea) {
-      // RULE 6: Do NOT remove the drawn boundary after the query. Retain active context.
-      setSearchBoxDrawnAttachment(activeDrawnArea);
+      // Retain active context in engine and lastDrawnQuery, but clear the input attachment card
+      setSearchBoxDrawnAttachment(null);
       setLastDrawnQuery(activeDrawnArea);
-      const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
-      const queryResult = executeDrawnAreaSpatialQuery({
-        ...activeDrawnArea,
-        activeCategories: cleanCategory ? [cleanCategory, ...activeKeys] : activeKeys,
-        query: cleanQuery,
-        lang: lang
-      });
+      spatialAIEngineInstance.setDrawnAreaContext(activeDrawnArea);
+    } else {
+      // Clean switch to another conversation not related to draw
+      setSearchBoxDrawnAttachment(null);
+      setLastDrawnQuery(null);
+      setRestoredDrawnGeometry(null);
+      spatialAIEngineInstance.setDrawnAreaContext(null);
+    }
 
-      setSelectedLocation(null);
-      setActiveRoute(null);
-      setIsNavigating(false);
-      setNavStepIndex(0);
-      setActiveSearchResults(queryResult.results || []);
-      setActiveSearchFilterTag({
-        query: cleanQuery,
-        category: cleanCategory || (activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area'),
-        label: cleanQuery
-          ? `${cleanQuery} (${queryResult.count} in drawn area)`
-          : (cleanCategory || `Drawn Area (${queryResult.count} found)`)
-      });
+    if (activeDrawnArea) {
 
-      setShowMap(true);
-      setIsAISearchBarOpen(true);
-      setAiState('panel');
-      if (panelHeight <= 100) setPanelHeight(280);
+      // If no text query or category was entered, do not execute generic search unless explicitly requested
+      if (!cleanQuery && !cleanCategory) {
+        if (!searchOptions.forceExecuteDrawn) {
+          return;
+        }
+        const activeKeys = Object.keys(selectedSubcategories || {}).filter(k => selectedSubcategories[k]);
+        const queryResult = executeDrawnAreaSpatialQuery({
+          ...activeDrawnArea,
+          activeCategories: activeKeys,
+          query: '',
+          lang: lang
+        });
 
-      const searchId = Date.now() + Math.random();
-      const userBubbleText = displayLabel || cleanQuery || cleanCategory || queryResult.userQueryText;
+        setSelectedLocation(null);
+        setActiveRoute(null);
+        setIsNavigating(false);
+        setNavStepIndex(0);
+        setActiveSearchResults(queryResult.results || []);
+        setActiveSearchFilterTag({
+          query: '',
+          category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
+          label: `Drawn Area (${queryResult.count} found)`
+        });
 
-      setChatMessages(prev => [
-        ...prev.map(m => m.id === 'welcome-init' || m.id === 'drawn-awaiting-query' ? { ...m, chips: [] } : m),
-        {
-          sender: 'user',
-          text: userBubbleText,
-          rawQuery: cleanQuery || cleanCategory || userBubbleText,
-          drawnArea: activeDrawnArea
-        },
-        { sender: 'ai', isSearching: true, id: searchId }
-      ]);
+        setShowMap(true);
+        setIsAISearchBarOpen(true);
+        setAiState('panel');
+        if (panelHeight <= 100) setPanelHeight(280);
 
-      const newId = Date.now();
-      setActiveHistoryId(newId);
-      setSearchHistory(prev => [
-        {
-          id: newId,
-          text: userBubbleText,
-          category: cleanCategory || (activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area'),
-          resultsCount: queryResult.count,
-          timestamp: 'Just now',
-          queryState: {
-            query: userBubbleText,
-            category: cleanCategory || 'Drawn Area',
-            selectedSubcategories: selectedSubcategories,
-            spatialType: 'draw',
-            drawnGeometry: activeDrawnArea,
-            resultsCount: queryResult.count
-          }
-        },
-        ...prev.filter(item => item.text.toLowerCase() !== userBubbleText.toLowerCase())
-      ]);
+        const searchId = Date.now() + Math.random();
+        const userBubbleText = displayLabel || queryResult.userQueryText;
 
-      addLog('AI Spatial Engine', `[DRAWN AREA] Spatial query executed: ${queryResult.count} matched for "${userBubbleText}"`, 'success');
+        setChatMessages(prev => [
+          ...prev.map(m => m.id === 'welcome-init' || m.id === 'drawn-awaiting-query' ? { ...m, chips: [] } : m),
+          {
+            sender: 'user',
+            text: userBubbleText,
+            rawQuery: userBubbleText,
+            drawnArea: activeDrawnArea
+          },
+          { sender: 'ai', isSearching: true, id: searchId }
+        ]);
 
-      setTimeout(() => {
-        setChatMessages(prev => prev.map(msg =>
-          msg.id === searchId
-            ? {
-              sender: 'ai',
-              text: cleanMarkdownText(queryResult.aiMessageText),
-              structuredResults: queryResult.structuredResults,
-              chips: queryResult.chips || [],
-              isExpanded: true,
-              id: searchId
+        const newId = Date.now();
+        setActiveHistoryId(newId);
+        setSearchHistory(prev => [
+          {
+            id: newId,
+            text: userBubbleText,
+            category: activeKeys.length > 0 ? activeKeys.join(', ') : 'Drawn Area',
+            resultsCount: queryResult.count,
+            timestamp: 'Just now',
+            queryState: {
+              query: userBubbleText,
+              category: 'Drawn Area',
+              selectedSubcategories: selectedSubcategories,
+              spatialType: 'draw',
+              drawnGeometry: activeDrawnArea,
+              resultsCount: queryResult.count
             }
-            : msg
-        ));
-      }, 450);
+          },
+          ...prev.filter(item => item.text.toLowerCase() !== userBubbleText.toLowerCase())
+        ]);
 
-      return;
+        addLog('AI Spatial Engine', `[DRAWN AREA] Spatial query executed: ${queryResult.count} matched in drawn geometry`, 'success');
+
+        setTimeout(() => {
+          setChatMessages(prev => prev.map(msg =>
+            msg.id === searchId
+              ? {
+                sender: 'ai',
+                text: cleanMarkdownText(queryResult.aiMessageText),
+                structuredResults: queryResult.structuredResults ? {
+                  ...queryResult.structuredResults,
+                  items: (queryResult.structuredResults.items || []).map(it => ({ ...it, drawnArea: activeDrawnArea }))
+                } : queryResult.structuredResults,
+                chips: queryResult.chips || [],
+                isExpanded: true,
+                id: searchId,
+                drawnArea: activeDrawnArea
+              }
+              : msg
+          ));
+          setClearVisualDrawnTrigger(Date.now());
+          setActiveDrawTool(null);
+        }, 450);
+
+        return;
+      }
     }
 
     if (cleanQuery) {
@@ -2358,7 +2430,8 @@ function App() {
       userLocation: effectiveUserLoc,
       locationPermissionDenied: effectivePermDenied,
       selectedLocation,
-      currentResults: activeSearchResults
+      currentResults: activeSearchResults,
+      drawnArea: activeDrawnArea
     });
 
     // Execute natural-language application control actions against existing app state
@@ -2474,7 +2547,8 @@ function App() {
       setActiveRoute(null);
       setIsNavigating(false);
       setNavStepIndex(0);
-      setActiveSearchResults(results);
+      const resultsWithArea = activeDrawnArea ? results.map(r => ({ ...r, drawnArea: activeDrawnArea })) : results;
+      setActiveSearchResults(resultsWithArea);
       if (cleanCategory && !cleanQuery) {
         setSelectedSubcategories({ [cleanCategory]: true });
       } else if (cleanQuery) {
@@ -2536,9 +2610,9 @@ function App() {
     }
 
     const searchId = Date.now() + Math.random();
-    if (!activeDrawnArea) {
-      setSearchBoxDrawnAttachment(null);
-    }
+    setSearchBoxDrawnAttachment(null);
+    setClearVisualDrawnTrigger(Date.now());
+    setActiveDrawTool(null);
     setChatMessages(prev => [
       ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
       {
@@ -2547,7 +2621,7 @@ function App() {
         rawQuery: cleanQuery || cleanCategory || userBubbleText,
         drawnArea: activeDrawnArea
       },
-      { sender: 'ai', isSearching: true, id: searchId }
+      { sender: 'ai', isSearching: true, id: searchId, drawnArea: activeDrawnArea }
     ]);
 
     setTimeout(() => {
@@ -2556,15 +2630,21 @@ function App() {
           ? {
             sender: 'ai',
             text: cleanMarkdownText(engineRes.aiMessageText),
-            structuredResults: engineRes.structuredResults || null,
+            structuredResults: engineRes.structuredResults ? {
+              ...engineRes.structuredResults,
+              items: (engineRes.structuredResults.items || []).map(it => ({ ...it, drawnArea: activeDrawnArea }))
+            } : null,
             clarification: engineRes.clarification || null,
             analytics: engineRes.analytics || null,
             isExpanded: true,
             chips: engineRes.chips || [],
-            id: searchId
+            id: searchId,
+            drawnArea: activeDrawnArea
           }
           : msg
       ));
+      setClearVisualDrawnTrigger(Date.now());
+      setActiveDrawTool(null);
     }, 450);
   };
 
@@ -2604,56 +2684,28 @@ function App() {
     });
   };
 
-  // Synchronize category multi-selection directly with plotted map features & active drawn area query
+  // Synchronize category multi-selection directly with plotted map features
   useEffect(() => {
     const activeKeys = Object.keys(selectedSubcategories).filter(k => selectedSubcategories[k]);
 
-    // If an active drawn spatial query exists, re-filter the drawn area dynamically!
-    if (lastDrawnQuery) {
-      const queryResult = executeDrawnAreaSpatialQuery({
-        ...lastDrawnQuery,
-        activeCategories: activeKeys,
-        query: searchQuery,
-        lang: lang
-      });
-      setActiveSearchResults(queryResult.results || []);
-      setActiveSearchFilterTag({
-        query: '',
-        category: 'Drawn Area',
-        label: `Drawn Area (${queryResult.count} found)`
-      });
-
-      const searchId = Date.now() + Math.random();
-      setChatMessages(prev => [
-        ...prev.map(m => m.id === 'welcome-init' ? { ...m, chips: [] } : m),
-        { sender: 'user', text: queryResult.userQueryText },
-        {
-          sender: 'ai',
-          text: queryResult.aiMessageText,
-          structuredResults: queryResult.structuredResults,
-          chips: queryResult.chips || [],
-          isExpanded: true,
-          id: searchId
-        }
-      ]);
-      return;
-    }
-
+    // If no layer category is selected in the drawer, do not overwrite active AI search results
     if (activeKeys.length === 0) {
-      if (activeSearchFilterTag?.category) {
-        setActiveSearchResults([]);
-        setActiveSearchFilterTag(null);
-      }
       return;
     }
 
-    const matched = GEOVISION_SPATIAL_DATASET.filter(item => {
+    // Explicit layer checkbox selection: filter dataset for active keys
+    let matched = GEOVISION_SPATIAL_DATASET.filter(item => {
       return activeKeys.some(key => {
         const isSub = isSubcategoryMatch(item.subcategory, key);
         const isCat = isCategoryMatch(item.category, key);
         return isSub || isCat;
       });
     });
+
+    // If an active drawn spatial boundary exists, keep layer filtering constrained to it
+    if (lastDrawnQuery) {
+      matched = matched.filter(item => isPointInDrawnArea(item, lastDrawnQuery));
+    }
 
     setActiveSearchResults([...matched]);
     setActiveSearchFilterTag({
@@ -2676,6 +2728,12 @@ function App() {
     setSelectedLocation({ ...feature, locateTrigger: Date.now() });
     setActiveDetailTab('overview');
     setIsDetailsMinimized(false);
+
+    // If feature belongs to a drawn area query or lastDrawnQuery exists, show the area on the map
+    const areaToRestore = feature.drawnArea || lastDrawnQuery;
+    if (areaToRestore) {
+      setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+    }
 
     // 2. Close AI panel on map click so Detailed Information shows full sidebar
     setAiState('button');
@@ -3055,7 +3113,10 @@ function App() {
   };
 
   const handleSearchSubmit = (query = searchQuery) => {
-    handleUnifiedSearch({ query });
+    const q = (query || '').trim();
+    setSearchQuery('');
+    setAiSearchQuery('');
+    handleUnifiedSearch({ query: q });
   };
 
   // Initialize with theme and first logs
@@ -3787,9 +3848,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'circle' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('circle');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "أداة الدائرة: انقر على المركز ثم انقر على الحافة" : "Circle Tool: Click center, then click outer edge");
+                    if (activeDrawTool === 'circle') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('circle');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "أداة الدائرة: انقر على المركز ثم انقر على الحافة" : "Circle Tool: Click center, then click outer edge");
+                    }
                   }}
                 >
                   <Circle size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
@@ -3798,9 +3865,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'rectangle' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('rectangle');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "أداة المستطيل: انقر على زاويتين متقابلتين" : "Rectangle Tool: Click two opposite corners");
+                    if (activeDrawTool === 'rectangle') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('rectangle');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "أداة المستطيل: انقر على زاويتين متقابلتين" : "Rectangle Tool: Click two opposite corners");
+                    }
                   }}
                 >
                   <Square size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
@@ -3809,9 +3882,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'polygon' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('polygon');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "أداة المضلع: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Polygon Tool: Click vertices, double-click to finish");
+                    if (activeDrawTool === 'polygon') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('polygon');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "أداة المضلع: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Polygon Tool: Click vertices, double-click to finish");
+                    }
                   }}
                 >
                   <Pentagon size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
@@ -3820,9 +3899,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'click' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('click');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "علامة النقطة: انقر في أي مكان على الخريطة لإسقاط دبوس" : "Point Marker: Click anywhere on map to drop pin");
+                    if (activeDrawTool === 'click') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('click');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "علامة النقطة: انقر في أي مكان على الخريطة لإسقاط دبوس" : "Point Marker: Click anywhere on map to drop pin");
+                    }
                   }}
                 >
                   <MousePointer size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
@@ -3831,9 +3916,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'line' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('line');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "قياس الخط: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Line Measure: Click points, double-click to finish");
+                    if (activeDrawTool === 'line') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('line');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "قياس الخط: انقر لتحديد النقاط، وانقر مزدوجاً للإنهاء" : "Line Measure: Click points, double-click to finish");
+                    }
                   }}
                 >
                   <Minus size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} style={{ transform: 'rotate(-45deg)' }} />
@@ -3842,9 +3933,15 @@ function App() {
                 <button
                   className={`popover-tile ${activeDrawTool === 'square' ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveDrawTool('square');
-                    setActiveLeftPopover(null);
-                    showToast(lang === 'ar' ? "أداة المربع: انقر على زاويتين" : "Square Tool: Click two corners");
+                    if (activeDrawTool === 'square') {
+                      setActiveDrawTool(null);
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "تم إيقاف أداة الرسم" : "Drawing mode deactivated");
+                    } else {
+                      setActiveDrawTool('square');
+                      setActiveLeftPopover(null);
+                      showToast(lang === 'ar' ? "أداة المربع: انقر على زاويتين" : "Square Tool: Click two corners");
+                    }
                   }}
                 >
                   <Square size={15} color={theme === 'dark' ? '#38BDF8' : '#004B87'} />
@@ -4209,7 +4306,9 @@ function App() {
               setActiveDrawTool={setActiveDrawTool}
               onDrawnAreaComplete={handleDrawnAreaSpatialQuery}
               onClearDrawnArea={handleClearDrawnArea}
+              lastDrawnQuery={lastDrawnQuery}
               restoredDrawnGeometry={restoredDrawnGeometry}
+              clearVisualDrawnTrigger={clearVisualDrawnTrigger}
               activeRoute={activeRoute}
               isNavigating={isNavigating}
               navStepIndex={navStepIndex}
@@ -4270,9 +4369,12 @@ function App() {
                 }}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (aiSearchQuery.trim() || searchBoxDrawnAttachment) {
-                    handleUnifiedSearch({ query: aiSearchQuery.trim() });
+                  const q = (aiSearchQuery || '').trim();
+                  if (q) {
                     setAiSearchQuery('');
+                    setSearchQuery('');
+                    setSearchBoxDrawnAttachment(null);
+                    handleUnifiedSearch({ query: q });
                   } else {
                     setAiState('panel');
                   }
@@ -4292,12 +4394,26 @@ function App() {
                   placeholder={t.searchPlaceholder || 'Ask Smart Map Anything...'}
                   value={aiSearchQuery}
                   onChange={(e) => setAiSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const q = (aiSearchQuery || '').trim();
+                      if (q) {
+                        setAiSearchQuery('');
+                        setSearchQuery('');
+                        setSearchBoxDrawnAttachment(null);
+                        handleUnifiedSearch({ query: q });
+                      } else {
+                        setAiState('panel');
+                      }
+                    }
+                  }}
                   onFocus={() => {
                     setAiState('panel');
                   }}
                 />
                 <div className="landing-search-btn-wrapper">
-                  <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim() && !searchBoxDrawnAttachment}>
+                  <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
                     <span className="search-btn-text">{t.searchBtn || 'Search'}</span>
                     <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
                   </button>
@@ -6387,6 +6503,12 @@ function App() {
                                 {msg.sender === 'user' && msg.drawnArea && (
                                   <div
                                     className="user-msg-spatial-boundary-badge"
+                                    onClick={() => {
+                                      setLastDrawnQuery(msg.drawnArea);
+                                      setRestoredDrawnGeometry({ ...msg.drawnArea, trigger: Date.now() });
+                                      showToast(lang === 'ar' ? 'تم إظهار المنطقة المحددة على الخريطة' : 'Showing drawn area on map');
+                                    }}
+                                    title={lang === 'ar' ? 'انقر لإظهار المنطقة على الخريطة' : 'Click to show drawn area on map'}
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
@@ -6399,10 +6521,11 @@ function App() {
                                       fontWeight: 600,
                                       color: theme === 'dark' ? '#38bdf8' : '#1D68F2',
                                       marginBottom: '2px',
-                                      alignSelf: lang === 'ar' ? 'flex-start' : 'flex-end'
+                                      alignSelf: lang === 'ar' ? 'flex-start' : 'flex-end',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
                                     }}
                                   >
-                                    <SquarePen size={11} strokeWidth={2.2} />
                                     <span>
                                       {lang === 'ar' ? 'نطاق جغرافي: ' : 'Spatial Boundary: '}
                                       {getDrawnAreaLabel(msg.drawnArea, lang)}
@@ -6411,119 +6534,28 @@ function App() {
                                 )}
 
                                 <div className={`chat-bubble ${msg.sender}`}>
-                                  {msg.sender === 'user' ? (
-                                  editingMessageIdx === idx ? (
-                                    <div
-                                      className="chat-bubble-content user-query-edit-container"
-                                      style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '8px'
-                                      }}
-                                    >
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                                        <div className="user-query-edit-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                          <Pencil size={13} strokeWidth={2.4} />
-                                          <span>{t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}</span>
-                                        </div>
-                                        <span className="user-query-edit-hint">Enter ↵ to run</span>
-                                      </div>
-                                      <textarea
-                                        className="user-query-edit-textarea"
-                                        value={editingMessageText}
-                                        onChange={(e) => setEditingMessageText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            if (editingMessageText.trim()) {
-                                              handleRunEditedQuery(editingMessageText, idx);
-                                            }
-                                          } else if (e.key === 'Escape') {
-                                            setEditingMessageIdx(null);
-                                          }
-                                        }}
-                                        autoFocus
-                                        rows={2}
-                                        placeholder={t.editingQueryPlaceholder || (lang === 'ar' ? 'تعديل نص الاستعلام...' : 'Edit search query...')}
-                                      />
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', marginTop: '2px' }}>
-                                        <button
-                                          type="button"
-                                          className="user-query-cancel-btn"
-                                          onClick={() => setEditingMessageIdx(null)}
-                                        >
-                                          <X size={12} strokeWidth={2.4} />
-                                          <span>{t.cancel || (lang === 'ar' ? 'إلغاء' : 'Cancel')}</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="user-query-run-btn"
-                                          disabled={!editingMessageText.trim()}
-                                          onClick={() => {
-                                            if (editingMessageText.trim()) {
-                                              handleRunEditedQuery(editingMessageText, idx);
-                                            }
-                                          }}
-                                        >
-                                          <Send size={12} strokeWidth={2.2} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
-                                          <span>{t.runQuery || (lang === 'ar' ? 'تشغيل الاستعلام' : 'Run Query')}</span>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className="chat-bubble-content user-bubble-interactive"
-                                      style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '6px',
-                                        position: 'relative'
-                                      }}
-                                    >
-                                      <div style={{ lineHeight: '1.45', wordBreak: 'break-word' }}>
-                                        {cleanMarkdownText(msg.text)}
-                                      </div>
-                                      <div style={{
-                                        display: 'flex',
-                                        justifyContent: lang === 'ar' ? 'flex-start' : 'flex-end',
-                                        marginTop: '2px'
-                                      }}>
-                                        <button
-                                          type="button"
-                                          className="edit-query-action-btn"
-                                          onClick={() => {
-                                            setEditingMessageIdx(idx);
-                                            setEditingMessageText(msg.rawQuery || msg.text || '');
-                                          }}
-                                          title={t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}
-                                          style={{
-                                            background: 'rgba(255, 255, 255, 0.18)',
-                                            border: '1px solid rgba(255, 255, 255, 0.35)',
-                                            borderRadius: '6px',
-                                            padding: '3px 8px',
-                                            color: '#FFFFFF',
-                                            fontSize: '11px',
-                                            fontWeight: 500,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            backdropFilter: 'blur(8px)',
-                                            transition: 'all 0.15s ease'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.30)';
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
-                                          }}
-                                        >
-                                          <Pencil size={11} strokeWidth={2.2} />
-                                          <span>{t.editQuery || (lang === 'ar' ? 'تعديل الاستعلام' : 'Edit Query')}</span>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )
+                                   {msg.sender === 'user' ? (
+                                     <div
+                                       className="chat-bubble-content user-bubble-interactive"
+                                       onClick={() => {
+                                         if (msg.drawnArea) {
+                                           setLastDrawnQuery(msg.drawnArea);
+                                           setRestoredDrawnGeometry({ ...msg.drawnArea, trigger: Date.now() });
+                                           showToast(lang === 'ar' ? 'تم إظهار المنطقة المحددة على الخريطة' : 'Showing drawn area on map');
+                                         }
+                                       }}
+                                       style={{
+                                         display: 'flex',
+                                         flexDirection: 'column',
+                                         gap: '6px',
+                                         position: 'relative',
+                                         cursor: msg.drawnArea ? 'pointer' : 'default'
+                                       }}
+                                     >
+                                       <div style={{ lineHeight: '1.45', wordBreak: 'break-word' }}>
+                                         {cleanMarkdownText(msg.text)}
+                                       </div>
+                                     </div>
                                 ) : (
                                   <div className="chat-bubble-content" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     {msg.isSearching ? (
@@ -6533,7 +6565,20 @@ function App() {
                                         <span className="typing-dot"></span>
                                       </div>
                                     ) : msg.text && !msg.text.includes('Here are the detailed spatial specifications') ? (
-                                      <div style={{ lineHeight: '1.45' }}>{cleanMarkdownText(msg.text)}</div>
+                                      <div
+                                        style={{
+                                          lineHeight: '1.45',
+                                          cursor: (msg.drawnArea || lastDrawnQuery) ? 'pointer' : 'default'
+                                        }}
+                                        onClick={() => {
+                                          const areaToRestore = msg.drawnArea || lastDrawnQuery;
+                                          if (areaToRestore) {
+                                            setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                          }
+                                        }}
+                                      >
+                                        {cleanMarkdownText(msg.text)}
+                                      </div>
                                     ) : null}
 
                                   {/* Clarification Options Box if Query was Ambiguous */}
@@ -6583,18 +6628,28 @@ function App() {
 
                                   {/* Phase 4: Structured Analytics Card */}
                                   {msg.analytics && (
-                                    <div className="structured-analytics-card" style={{
-                                      marginTop: '6px',
-                                      padding: '10px 12px',
-                                      borderRadius: '10px',
-                                      background: 'rgba(255, 255, 255, 0.95)',
-                                      border: '1px solid rgba(29, 104, 242, 0.22)',
-                                      boxShadow: '0 4px 14px rgba(0, 43, 91, 0.08)',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: '8px',
-                                      boxSizing: 'border-box'
-                                    }}>
+                                    <div
+                                      className="structured-analytics-card"
+                                      onClick={() => {
+                                        const areaToRestore = msg.drawnArea || lastDrawnQuery;
+                                        if (areaToRestore) {
+                                          setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                        }
+                                      }}
+                                      style={{
+                                        marginTop: '6px',
+                                        padding: '10px 12px',
+                                        borderRadius: '10px',
+                                        background: 'rgba(255, 255, 255, 0.95)',
+                                        border: '1px solid rgba(29, 104, 242, 0.22)',
+                                        boxShadow: '0 4px 14px rgba(0, 43, 91, 0.08)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        boxSizing: 'border-box',
+                                        cursor: (msg.drawnArea || lastDrawnQuery) ? 'pointer' : 'default'
+                                      }}
+                                    >
                                       <GeoVisionAnalyticsChart analytics={msg.analytics} lang={lang} theme={theme} />
                                     </div>
                                   )}
@@ -6607,6 +6662,10 @@ function App() {
                                         className="structured-results-header"
                                         onClick={() => {
                                           setChatMessages(prev => prev.map((m, i) => i === idx ? { ...m, isExpanded: !m.isExpanded } : m));
+                                          const areaToRestore = msg.drawnArea || lastDrawnQuery;
+                                          if (areaToRestore) {
+                                            setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                          }
                                         }}
                                         style={{ cursor: 'pointer' }}
                                       >
@@ -6618,33 +6677,36 @@ function App() {
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                           <button
-                                            className="structured-expand-btn"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setChatMessages(prev => prev.map((m, i) => i === idx ? { ...m, isExpanded: !m.isExpanded } : m));
+                                            className="structured-accordion-toggle"
+                                            style={{
+                                              transform: msg.isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                                             }}
-                                            title={msg.isExpanded ? (lang === 'ar' ? 'طي النتائج' : "Collapse Results") : (lang === 'ar' ? 'توسيع النتائج' : "Expand Results")}
                                           >
-                                            {msg.isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />}
+                                            <ChevronDown size={14} />
                                           </button>
                                         </div>
                                       </div>
 
-                                      {/* Expanded Body: Subcategory Tabs & Scrollable Item List */}
+                                      {/* Body Items List */}
                                       {msg.isExpanded && (
                                         <div className="structured-results-body">
+                                          {/* Tab navigation pills if multiple categories */}
                                           {msg.structuredResults.tabs && msg.structuredResults.tabs.length > 1 && (
                                             <div className="structured-tabs-bar">
                                               {msg.structuredResults.tabs.map(tab => (
                                                 <button
                                                   key={tab.id}
-                                                  className={`structured-tab-btn ${msg.structuredResults.activeTabId === tab.id ? 'active' : ''}`}
+                                                  className={`structured-tab-btn ${(!msg.structuredResults.activeTabId && tab.id === 'all') || msg.structuredResults.activeTabId === tab.id ? 'active' : ''}`}
                                                   onClick={() => {
                                                     setChatMessages(prev => prev.map((m, i) => {
                                                       if (i === idx) {
                                                         return {
                                                           ...m,
-                                                          structuredResults: { ...m.structuredResults, activeTabId: tab.id }
+                                                          structuredResults: {
+                                                            ...m.structuredResults,
+                                                            activeTabId: tab.id === 'all' ? '' : tab.id
+                                                          }
                                                         };
                                                       }
                                                       return m;
@@ -6665,6 +6727,10 @@ function App() {
                                                     className={`structured-item-card ${item.showDetails ? 'expanded-details' : ''} ${selectedLocation && selectedLocation.id === item.id ? 'active-selected' : ''}`}
                                                     onClick={() => {
                                                       setSelectedLocation({ ...item, locateTrigger: Date.now() });
+                                                      const areaToRestore = item.drawnArea || msg.drawnArea || lastDrawnQuery;
+                                                      if (areaToRestore) {
+                                                        setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                                      }
                                                     }}
                                                   >
                                                     {/* Card Main Row */}
@@ -6716,6 +6782,10 @@ function App() {
                                                           onClick={(e) => {
                                                             e.stopPropagation();
                                                             setSelectedLocation({ ...item, zoomTrigger: Date.now(), locateTrigger: Date.now() });
+                                                            const areaToRestore = item.drawnArea || msg.drawnArea || lastDrawnQuery;
+                                                            if (areaToRestore) {
+                                                              setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                                            }
                                                             showToast(lang === 'ar' ? `تم التكبير إلى ${item.arabicTitle || getArabicTitle(item.title)}` : `Zoomed to ${item.title}`);
                                                           }}
                                                         >
@@ -7015,10 +7085,13 @@ function App() {
                         }}
                         onSubmit={(e) => {
                           e.preventDefault();
-                          if (aiSearchQuery.trim() || searchBoxDrawnAttachment) {
-                            handleUnifiedSearch({ query: aiSearchQuery.trim() });
+                          const q = (aiSearchQuery || '').trim();
+                          if (q) {
                             setAiSearchQuery('');
+                            setSearchQuery('');
+                            setSearchBoxDrawnAttachment(null);
                             setShowPlusMenu(false);
+                            handleUnifiedSearch({ query: q });
                           }
                         }}
                       >
@@ -7087,11 +7160,24 @@ function App() {
                             placeholder={t.searchPlaceholder || (lang === 'ar' ? 'اسأل الخريطة الذكية أي شيء...' : 'Ask Smart Map Anything...')}
                             value={aiSearchQuery}
                             onChange={(e) => setAiSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const q = (aiSearchQuery || '').trim();
+                                if (q) {
+                                  setAiSearchQuery('');
+                                  setSearchQuery('');
+                                  setSearchBoxDrawnAttachment(null);
+                                  setShowPlusMenu(false);
+                                  handleUnifiedSearch({ query: q });
+                                }
+                              }
+                            }}
                             onFocus={() => { if (panelHeight <= 100) setPanelHeight(200); }}
                             style={{ fontSize: '13px', flex: 1 }}
                           />
                           <div className="landing-search-btn-wrapper">
-                            <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim() && !searchBoxDrawnAttachment}>
+                            <button type="submit" className="landing-search-btn-pill" disabled={!aiSearchQuery.trim()}>
                               <span className="search-btn-text">{t.searchBtn || (lang === 'ar' ? 'بحث' : 'Search')}</span>
                               <Send size={15} className="search-btn-icon" style={{ transform: lang === 'ar' ? 'scaleX(-1)' : 'none' }} />
                             </button>

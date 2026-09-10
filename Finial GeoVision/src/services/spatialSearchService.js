@@ -3344,7 +3344,8 @@ export function normalizeUserSpatialQuery(rawQuery = '') {
   // 2. Normalize glued English and Arabic prepositions, keywords, and measurements
   q = q.replace(/\b(show|find|get|list|display|search|navigate|route)([a-zA-Z]{3,})\b/gi, '$1 $2');
   q = q.replace(/\b([a-zA-Z]+)near\b/gi, '$1 near');
-  q = q.replace(/\bnear([a-zA-Z]+)\b/gi, 'near $1');
+  // Split glued 'near' prefix — but preserve complete words like "nearest", "nearby"
+  q = q.replace(/\bnear(?!est\b|by\b)([a-zA-Z]+)\b/gi, 'near $1');
   q = q.replace(/\b([a-zA-Z]+)(near|nearby|within|around|inside|from|closest|nearest)(me|my\s+location|current\s+location)\b/gi, '$1 $2 $3');
   q = q.replace(/\b([a-zA-Z]+)(near|around|within|closest|nearest|in|at|of|to|from)(khalifa|yas|mushrif|mussafah|bateen|reem|dhabi|saadiyat|al|ain|dhafra|dubai|ruwais)\b/gi, '$1 $2 $3');
   q = q.replace(/\b(near|within|around|closest|nearest|in|at)(me|khalifa|yas|mushrif|mussafah|dhabi|dubai)\b/gi, '$1 $2');
@@ -3873,9 +3874,16 @@ export function parseAttributeFilters(qLower) {
   const filters = {};
 
   // 1. Sector
-  if (qLower.includes('government') || qLower.includes('public') || qLower.includes('حكومي') || qLower.includes('حكومية')) {
-    filters.sector = 'Government';
-  } else if (qLower.includes('private') || qLower.includes('خاص') || qLower.includes('خاصة')) {
+  // Do not treat query as a sector attribute filter if it is explicitly querying Government Services / Centers / Facilities as a category
+  const isGovCategoryQuery = /(?:government centers|government facilities|government services|government offices|مراكز حكومية|منشآت حكومية|خدمات حكومية|دوائر حكومية)/i.test(qLower) ||
+    /^(?:government|government facilities|government centers|government services|حكومي|حكومية|خدمات حكومية)$/i.test(qLower.trim());
+
+  if (!isGovCategoryQuery) {
+    if (qLower.includes('government') || qLower.includes('public') || qLower.includes('حكومي') || qLower.includes('حكومية')) {
+      filters.sector = 'Government';
+    }
+  }
+  if (qLower.includes('private') || qLower.includes('خاص') || qLower.includes('خاصة')) {
     filters.sector = 'Private';
   }
 
@@ -5248,14 +5256,23 @@ class SpatialAIEngine {
       const isExplicitDrawnArea = activeDrawnArea && (
         qLower.includes('this area') ||
         qLower.includes('the area') ||
+        qLower.includes('selected area') ||
+        qLower.includes('drawn area') ||
+        qLower.includes('in area') ||
+        qLower.includes('in this area') ||
         qLower.includes('this circle') ||
         qLower.includes('this polygon') ||
+        qLower.includes('this shape') ||
+        qLower.includes('here') ||
         qLower.includes('inside') ||
         qLower.includes('within') ||
         qLower.includes('هذه المنطقة') ||
         qLower.includes('المنطقة المحددة') ||
+        qLower.includes('المنطقة المختارة') ||
+        qLower.includes('المنطقة المرسومة') ||
         qLower.includes('داخل') ||
         qLower.includes('ضمن') ||
+        qLower.includes('هنا') ||
         !Object.keys(DISTRICT_COORDINATES).some(k => qLower.includes(k))
       );
 
@@ -5283,10 +5300,14 @@ class SpatialAIEngine {
           };
         }
 
+        const hasGovCategory = targetEntities.some(e => e.category === 'Government Services');
         let sectorFilter = null;
-        if (qLower.includes('government') || qLower.includes('حكومي') || qLower.includes('حكومية') || (this.context.filters.sector === 'Government' && !qLower.includes('private'))) {
-          sectorFilter = 'Government';
-        } else if (qLower.includes('private') || qLower.includes('خاص') || qLower.includes('خاصة') || (this.context.filters.sector === 'Private' && !qLower.includes('government'))) {
+        if (!hasGovCategory) {
+          if (qLower.includes('government') || qLower.includes('حكومي') || qLower.includes('حكومية') || (this.context.filters.sector === 'Government' && !qLower.includes('private'))) {
+            sectorFilter = 'Government';
+          }
+        }
+        if (qLower.includes('private') || qLower.includes('خاص') || qLower.includes('خاصة') || (this.context.filters.sector === 'Private' && !qLower.includes('government'))) {
           sectorFilter = 'Private';
         }
 
@@ -5306,7 +5327,8 @@ class SpatialAIEngine {
           }
           if (!entityMatch) return false;
 
-          const sectorMatch = sectorFilter
+          const isSectorSpecificCategory = item.category === 'Education' || item.category === 'Healthcare';
+          const sectorMatch = (sectorFilter && isSectorSpecificCategory)
             ? (item.sector === sectorFilter || (item.category && item.category.toLowerCase().includes(sectorFilter.toLowerCase())) || item.type?.toLowerCase().includes(sectorFilter.toLowerCase()) || (sectorFilter === 'Government' && (item.subcategory === 'Public Schools' || item.subcategory === 'Charter Schools')) || (sectorFilter === 'Private' && item.subcategory === 'Private Schools'))
             : true;
           return sectorMatch;
@@ -5591,7 +5613,7 @@ class SpatialAIEngine {
     // 1. Spatial Preposition / Operator Detection
     const hasSpatialOp =
       qLower.includes('within') ||
-      qLower.includes('near') ||
+      /\bnear\b/.test(qLower) ||   // use word boundary – prevents "nearest" from matching "near"
       qLower.includes('nearby') ||
       qLower.includes('close to') ||
       qLower.includes('around') ||
@@ -5794,8 +5816,8 @@ class SpatialAIEngine {
           structuredResults: { title: 'No Reference Features', category: referenceLayerInfo.category, items: [], tabs: [] },
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: [
-            { label: lang === 'ar' ? `المدارس في ${locNameAr}` : `Schools in ${locName}`, query: `Show schools in ${locName}` },
-            { label: lang === 'ar' ? `المستشفيات في ${locNameAr}` : `Hospitals in ${locName}`, query: `Show hospitals in ${locName}` }
+            { label: lang === 'ar' ? `المراكز الحكومية في ${locNameAr}` : `Government centers in ${locName}`, query: `Show government facilities in ${locName}` },
+            { label: lang === 'ar' ? `محطات الحافلات في ${locNameAr}` : `Bus stations in ${locName}`, query: `Show bus stations in ${locName}` }
           ],
           mapAction: { type: 'fly_to', center: [targetDistrict.lat, targetDistrict.lon], zoom: 14 }
         };
@@ -5955,6 +5977,7 @@ class SpatialAIEngine {
     let rankType = null;
     let rankSummary = '';
     let topNLimit = null;
+    const isExplicitUserNear = qLower.includes('to me') || qLower.includes('from me') || qLower.includes('from my location') || qLower.includes('عني') || qLower.includes('موقعي') || qLower.includes('من موقعي');
 
     // Detect Top N (e.g. "top 5", "best 3", "أفضل 5")
     const topNMatch = qLower.match(/top\s*(\d+)/i) || qLower.match(/best\s*(\d+)/i) || qLower.match(/أفضل\s*(\d+)/i) || qLower.match(/أعلى\s*(\d+)/i);
@@ -6021,11 +6044,31 @@ class SpatialAIEngine {
     ) {
       rankType = 'nearest';
       rankSummary = 'sorted by proximity ascending';
-      const isExplicitUserNear = qLower.includes('to me') || qLower.includes('from me') || qLower.includes('from my location') || qLower.includes('عني') || qLower.includes('موقعي') || qLower.includes('من موقعي');
       const isFollowUpClosest = qLower.includes('which one is closest') || qLower.includes('which is closest') || qLower.includes('which one is nearest') || qLower.includes('أي منها هو الأقرب') || qLower.includes('ايهم اقرب') || qLower.includes('أيها أقرب');
-      const useUserLocation = isExplicitUserNear || isFollowUpClosest || !activeLoc || Boolean(options.userLocation);
-      const refLat = useUserLocation ? userLoc.lat : activeLoc.lat;
-      const refLon = useUserLocation ? userLoc.lon : activeLoc.lon;
+      const activeDrawn = this.context.drawnArea || options.drawnArea;
+      let refLat = userLoc.lat;
+      let refLon = userLoc.lon;
+
+      if (activeDrawn && !isExplicitUserNear) {
+        if (activeDrawn.center) {
+          refLat = activeDrawn.center.lat !== undefined ? activeDrawn.center.lat : activeDrawn.center[0];
+          refLon = activeDrawn.center.lng !== undefined ? activeDrawn.center.lng : (activeDrawn.center.lon !== undefined ? activeDrawn.center.lon : activeDrawn.center[1]);
+        } else if (activeDrawn.coordinates && activeDrawn.coordinates.length > 0) {
+          const validCoords = activeDrawn.coordinates.map(c => ({
+            lat: c.lat !== undefined ? c.lat : c[0],
+            lon: c.lng !== undefined ? c.lng : (c.lon !== undefined ? c.lon : c[1])
+          })).filter(c => c.lat != null && c.lon != null);
+          if (validCoords.length > 0) {
+            refLat = validCoords.reduce((sum, c) => sum + c.lat, 0) / validCoords.length;
+            refLon = validCoords.reduce((sum, c) => sum + c.lon, 0) / validCoords.length;
+          }
+        }
+      } else {
+        const useUserLocation = isExplicitUserNear || isFollowUpClosest || !activeLoc || Boolean(options.userLocation);
+        refLat = useUserLocation ? userLoc.lat : activeLoc.lat;
+        refLon = useUserLocation ? userLoc.lon : activeLoc.lon;
+      }
+
       ranked = ranked.map(item => {
         const dist = calculateDistanceKm(refLat, refLon, item.lat, item.lon);
         return { ...item, distanceKm: parseFloat(dist.toFixed(2)), calculatedDistanceKm: parseFloat(dist.toFixed(2)) };
@@ -6222,9 +6265,11 @@ class SpatialAIEngine {
           ? `أدنى ${nounAr} تقييماً في **${locAr}** هي **${topItem.arabicTitle || topItem.title}**، بتقييم **${topItem.rating} ★**.`
           : `The lowest-rated ${nounEn} in **${locEn}** is **${topItem.title}**, with a rating of **${topItem.rating} ★**.`;
       } else if (rankType === 'nearest') {
+        const fromPhraseAr = isExplicitUserNear ? 'إليك ' : (isDrawnAreaContext ? '' : 'إليك ');
+        const fromPhraseEn = isExplicitUserNear ? 'to you ' : (isDrawnAreaContext ? '' : 'to you ');
         aiResponseText = lang === 'ar'
-          ? `أقرب ${nounAr} إليك في **${locAr}** هو **${topItem.arabicTitle || topItem.title}** (يبعد **${topItem.distanceKm} كم**، التقييم: **${topItem.rating} ★**).`
-          : `The nearest ${nounEn} to you in **${locEn}** is **${topItem.title}** (distance: **${topItem.distanceKm} km**, rating: **${topItem.rating} ★**).`;
+          ? `أقرب ${nounAr} ${fromPhraseAr}في **${locAr}** هو **${topItem.arabicTitle || topItem.title}** (يبعد **${topItem.distanceKm} كم**، التقييم: **${topItem.rating} ★**).`
+          : `The nearest ${nounEn} ${fromPhraseEn}in **${locEn}** is **${topItem.title}** (distance: **${topItem.distanceKm} km**, rating: **${topItem.rating} ★**).`;
       } else if (rankType === 'farthest') {
         aiResponseText = lang === 'ar'
           ? `أبعد ${nounAr} عنك في **${locAr}** هو **${topItem.arabicTitle || topItem.title}** (يبعد **${topItem.distanceKm} كم**).`
@@ -6454,8 +6499,8 @@ class SpatialAIEngine {
         });
       } else if (activeCat === 'Education') {
         chips.push({
-          label: lang === 'ar' ? `محطات الحافلات القريبة من المدارس في ${activeLocAr}` : `Bus stations near schools in ${activeLoc}`,
-          query: `Show bus stations within 1 km of schools in ${activeLoc}`
+          label: lang === 'ar' ? `محطات الحافلات القريبة في ${activeLocAr}` : `Bus stations nearby in ${activeLoc}`,
+          query: `Show bus stations in ${activeLoc}`
         });
       } else {
         chips.push({
@@ -6511,8 +6556,8 @@ class SpatialAIEngine {
       query: 'Industrial facilities with emissions under 50000 tonnes in Abu Dhabi'
     });
     chips.push({
-      label: lang === 'ar' ? 'مقارنة المدارس والمستشفيات في مدينة خليفة' : 'Compare schools and hospitals in Khalifa City',
-      query: 'Compare schools and hospitals in Khalifa City'
+      label: lang === 'ar' ? 'مقارنة المراكز الحكومية ومرافق النقل في مدينة خليفة' : 'Compare government facilities and transport in Khalifa City',
+      query: 'Compare government facilities and transport in Khalifa City'
     });
     return chips;
   }
@@ -7534,7 +7579,7 @@ class SpatialAIEngine {
         chips: [
           { label: lang === 'ar' ? 'أقرب مركز فحص مركبات' : 'Nearest Vehicle Inspection', query: 'Get directions to the nearest vehicle inspection center' },
           { label: lang === 'ar' ? 'أقرب محطة حافلات' : 'Nearest Bus Station', query: 'Get directions to the nearest bus station' },
-          { label: lang === 'ar' ? 'أقرب مستشفى' : 'Nearest Hospital', query: 'Get directions to the nearest hospital' }
+          { label: lang === 'ar' ? 'أقرب حديقة عامة' : 'Nearest Public Park', query: 'Get directions to the nearest public park' }
         ]
       };
     }
@@ -7646,10 +7691,10 @@ class SpatialAIEngine {
       this.context.selectedFeature = options.selectedLocation;
     }
 
-    if (options?.drawnArea && !this.context.drawnArea) {
+    if (options?.drawnArea) {
       this.setDrawnAreaContext(options.drawnArea);
     }
-    const activeDrawnArea = this.context.drawnArea || options?.drawnArea || null;
+    let activeDrawnArea = this.context.drawnArea || options?.drawnArea || null;
 
     // 0.0 CHECK FOR NATURAL LANGUAGE APPLICATION CONTROL COMMANDS (Theme, Language, Basemap, Navigation, Layers, Legend, Locate, Draw, Print)
     const appControlRes = this.evaluateApplicationControlCommand(q, lang, options);
@@ -7802,8 +7847,8 @@ class SpatialAIEngine {
           results: this.context.currentResults.length > 0 ? this.context.currentResults : [...GEOVISION_SPATIAL_DATASET],
           contextBadges: this.context.getActiveContextBadges(lang),
           chips: [
-            { label: lang === 'ar' ? 'المدارس في مدينة خليفة' : 'Schools in Khalifa City', query: 'Show schools in Khalifa City' },
-            { label: lang === 'ar' ? 'المستشفيات في مدينة خليفة' : 'Hospitals in Khalifa City', query: 'Show hospitals in Khalifa City' }
+            { label: lang === 'ar' ? 'المراكز الحكومية في مدينة خليفة' : 'Government centers in Khalifa City', query: 'Show government facilities in Khalifa City' },
+            { label: lang === 'ar' ? 'الحدائق في مدينة خليفة' : 'Parks in Khalifa City', query: 'Show parks in Khalifa City' }
           ]
         };
       }
@@ -7977,16 +8022,16 @@ class SpatialAIEngine {
         clarification: {
           question: lang === 'ar' ? 'اختر النقطة المرجعية:' : 'Select a reference point:',
           options: [
-            { label: lang === 'ar' ? 'موقعي الحالي' : 'My Current Location', query: 'Show schools within 5 km of my location' },
-            { label: lang === 'ar' ? 'مدينة خليفة' : 'Khalifa City', query: 'Show schools in Khalifa City' },
-            { label: lang === 'ar' ? 'جزيرة ياس' : 'Yas Island', query: 'Show schools in Yas Island' }
+            { label: lang === 'ar' ? 'موقعي الحالي' : 'My Current Location', query: 'Show parks within 5 km of my location' },
+            { label: lang === 'ar' ? 'مدينة خليفة' : 'Khalifa City', query: 'Show parks in Khalifa City' },
+            { label: lang === 'ar' ? 'جزيرة ياس' : 'Yas Island', query: 'Show parks in Yas Island' }
           ]
         },
         results: [...GEOVISION_SPATIAL_DATASET],
         contextBadges: this.context.getActiveContextBadges(lang),
         chips: [
-          { label: lang === 'ar' ? 'المدارس في مدينة خليفة' : 'Schools in Khalifa City', query: 'Show schools in Khalifa City' },
-          { label: lang === 'ar' ? 'المدارس بالقرب مني' : 'Schools near me', query: 'Show schools within 5 km of my location' }
+          { label: lang === 'ar' ? 'الحدائق في مدينة خليفة' : 'Parks in Khalifa City', query: 'Show parks in Khalifa City' },
+          { label: lang === 'ar' ? 'الحدائق بالقرب مني' : 'Parks near me', query: 'Show parks within 5 km of my location' }
         ]
       };
     }
@@ -8059,16 +8104,17 @@ class SpatialAIEngine {
     }
 
     const isMultiCategoryQuery = resolveAllTaxonomyEntities(qLower).length > 1;
+    const isGovCategoryQuery = /(?:government centers|government facilities|government services|government offices|مراكز حكومية|منشآت حكومية|خدمات حكومية|دوائر حكومية)/i.test(qLower) ||
+      /^(?:government|government facilities|government centers|government services|حكومي|حكومية|خدمات حكومية)$/i.test(qLower.trim());
     const radMatchProgressive = qLower.match(/(?:within|in|radius|distance|ضمن|نطاق)\s*([\d.]+)\s*(?:km|kilo|كم)/i);
 
-    const isProgressiveFollowUp = !isMultiCategoryQuery && !isCategorySwitch && !isNearMeIntent && (
+    const isProgressiveFollowUp = Boolean(this.context.dataset) && !isGovCategoryQuery && !isMultiCategoryQuery && !isCategorySwitch && !isNearMeIntent && (
       refinedSubcat !== null ||
       radMatchProgressive !== null ||
       qLower.startsWith('only ') ||
       qLower.startsWith('just ') ||
       qLower.includes(' فقط') ||
-      qLower.includes('government') ||
-      qLower.includes('private') ||
+      (!isGovCategoryQuery && (qLower.includes('government') || qLower.includes('private'))) ||
       qLower.includes('nearest') ||
       qLower.includes('closest') ||
       qLower.includes('which is closest') ||
@@ -8445,7 +8491,10 @@ class SpatialAIEngine {
         this.context.locationCoordinates = targetDistrict;
       }
     } else if (targetCategory && this.context.dataset && targetCategory.toLowerCase() !== this.context.dataset.toLowerCase()) {
-      const retainedDrawnArea = this.context.drawnArea;
+      const isExplicitAreaMentioned = qLower.includes('this area') || qLower.includes('the area') || qLower.includes('here') ||
+        qLower.includes('inside') || qLower.includes('within') || qLower.includes('selected area') || qLower.includes('drawn area') ||
+        qLower.includes('in area') || qLower.includes('هذه المنطقة') || qLower.includes('المنطقة المحددة') || qLower.includes('هنا') || qLower.includes('داخل');
+      const retainedDrawnArea = isExplicitAreaMentioned ? this.context.drawnArea : null;
       this.context.filters = {
         sector: null,
         ratingMin: null,
@@ -8473,7 +8522,8 @@ class SpatialAIEngine {
         targetDistrict = this.context.locationCoordinates;
       }
     } else if (targetDistrict && targetCategory) {
-      const retainedDrawnArea = this.context.drawnArea;
+      const isExplicitAreaMentioned = qLower.includes('this area') || qLower.includes('the area') || qLower.includes('here');
+      const retainedDrawnArea = isExplicitAreaMentioned ? this.context.drawnArea : null;
       this.context.reset();
       this.context.location = targetDistrict.name;
       this.context.locationCoordinates = targetDistrict;
@@ -8519,6 +8569,9 @@ class SpatialAIEngine {
 
     // Apply Structured Attribute Filters
     workingDataset = applyItemAttributeFilters(workingDataset, this.context.filters);
+
+    // Sync activeDrawnArea after category switch / context evaluation
+    activeDrawnArea = this.context.drawnArea;
 
     // Apply Drawn Area Filter or District Filter or Global User Location Proximity Sorting
     if (activeDrawnArea && !targetDistrict) {
@@ -8703,6 +8756,21 @@ class SpatialAIEngine {
 
     let aiResponseText = '';
     if (count === 0) {
+      if (activeDrawnArea) {
+        const areaLabel = getDrawnAreaLabel(activeDrawnArea, lang);
+        const zeroMsgEn = `No ${catEn} were found inside ${areaLabel}. Try adjusting your search or drawing a larger boundary.`;
+        const zeroMsgAr = `لم يتم العثور على أي ${catAr} داخل ${areaLabel}. جرب توسيع نطاق الرسم أو تعديل الفئات.`;
+        return {
+          intent: 'zero_results',
+          querySummary: cleanMarkdownText(lang === 'ar' ? zeroMsgAr : zeroMsgEn),
+          aiMessageText: cleanMarkdownText(lang === 'ar' ? zeroMsgAr : zeroMsgEn),
+          results: [],
+          structuredResults: null,
+          contextBadges: this.context.getActiveContextBadges(lang),
+          chips: this.generateContextualSuggestions('zero_results', lang, options, []),
+          mapAction: { type: 'fit_bounds' }
+        };
+      }
       return {
         intent: 'zero_results',
         querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
@@ -8804,10 +8872,16 @@ class SpatialAIEngine {
    */
   generateContextualSuggestions(intent, lang = 'en', options = {}, workingDataset = []) {
     const chips = [];
-    const activeLoc = this.context.location || options?.targetDistrict?.name || 'Khalifa City';
+    const activeLoc = this.context.location || options?.targetDistrict?.name || 'Abu Dhabi';
     const activeLocAr = this.context.locationCoordinates?.arabicName || options?.targetDistrict?.arabicName || activeLoc;
-    const activeCat = this.context.dataset || options?.targetCategory || 'Healthcare';
-    const activeCatAr = CAT_TRANSLATIONS_AR[activeCat] || activeCat;
+    let activeCat = this.context.dataset || options?.targetCategory || null;
+    if (!activeCat && workingDataset && workingDataset.length > 0) {
+      const cats = [...new Set(workingDataset.map(i => i.category).filter(Boolean))];
+      if (cats.length === 1) {
+        activeCat = cats[0];
+      }
+    }
+    const activeCatAr = activeCat ? (CAT_TRANSLATIONS_AR[activeCat] || activeCat) : '';
     const activeFilters = this.context.filters || {};
     const radius = this.context.radius || options?.searchRadiusKm || 2;
     const isSelected = !options?.selectedLocation;
@@ -8871,7 +8945,7 @@ class SpatialAIEngine {
         });
       } else if (featureCat.includes('edu') || featureCat.includes('school') || featureCat.includes('univ')) {
         chips.push({
-          label: lang === 'ar' ? `محطات الحافلات القريبة من ${featureTitleAr}` : `Bus stations near this school`,
+          label: lang === 'ar' ? `محطات الحافلات القريبة من هذا المعلم` : `Bus stations near this facility`,
           query: `Show bus stations within 1 km of ${featureTitle}`
         });
         chips.push({
@@ -9078,13 +9152,13 @@ class SpatialAIEngine {
         });
       } else if (catLower.includes('edu') || catLower.includes('school')) {
         chips.push({
-          label: lang === 'ar' ? 'محطات الحافلات القريبة من هذه المدارس' : 'Bus stations near these schools',
-          query: `Show bus stations within 1 km of schools in ${activeLoc}`
+          label: lang === 'ar' ? 'محطات الحافلات القريبة من هذه المرافق' : 'Bus stations near these facilities',
+          query: `Show bus stations within 1 km of facilities in ${activeLoc}`
         });
       } else if (catLower.includes('health') || catLower.includes('hosp')) {
         chips.push({
-          label: lang === 'ar' ? 'الصيدليات القريبة من هذه المستشفيات' : 'Pharmacies near these hospitals',
-          query: `Show pharmacies within 2 km of hospitals in ${activeLoc}`
+          label: lang === 'ar' ? 'المرافق الخدمية القريبة من هذه المراكز' : 'Service facilities near these centers',
+          query: `Show service facilities within 2 km in ${activeLoc}`
         });
       } else {
         chips.push({
@@ -9169,20 +9243,20 @@ class SpatialAIEngine {
     // Government Services / Public Services
     if (catLower.includes('gov') || catLower.includes('public service') || catLower.includes('admin')) {
       chips.push({
-        label: lang === 'ar' ? 'أقرب مركز حكومي إلي' : 'Which government center is closest?',
-        query: `Which government center is closest to me in ${activeLoc}?`
+        label: lang === 'ar' ? 'أي مركز حكومي هو الأقرب؟' : 'Which government center is closest?',
+        query: this.context.drawnArea ? 'Which government center is closest in this area?' : `Which government center is closest to me in ${activeLoc}?`
       });
       chips.push({
-        label: lang === 'ar' ? 'مرافق الخدمات العامة ضمن 2 كم' : 'Show public service facilities within 2 km',
-        query: `Show public service facilities within 2 km of ${activeLoc}`
+        label: lang === 'ar' ? 'عرض السفارات والقنصليات' : 'Show embassies & consulates',
+        query: this.context.drawnArea ? 'Show embassies in this area' : `Show embassies in ${activeLoc}`
+      });
+      chips.push({
+        label: lang === 'ar' ? 'مراكز تم للخدمات الحكومية' : 'Show TAMM service centers',
+        query: 'Show TAMM service centers'
       });
       chips.push({
         label: lang === 'ar' ? `المكاتب البلدية في ${activeLocAr}` : `Show municipal offices in ${activeLoc}`,
         query: `Show municipal offices in ${activeLoc}`
-      });
-      chips.push({
-        label: lang === 'ar' ? 'توسيع النطاق إلى 5 كم' : 'Increase radius to 5 km',
-        query: 'Increase radius to 5 km'
       });
       return chips;
     }
@@ -9292,8 +9366,8 @@ class SpatialAIEngine {
       return chips;
     }
 
-    // Healthcare
-    if (catLower.includes('health') || catLower.includes('hosp') || catLower.includes('clinic')) {
+    // Healthcare (Strictly only when category is Healthcare)
+    if (activeCat && (catLower.includes('health') || catLower.includes('hosp') || catLower.includes('clinic'))) {
       chips.push({
         label: lang === 'ar' ? 'أي مستشفى يضم أكبر عدد من الأسرّة؟' : 'Which facility has the most beds?',
         query: `Which hospital has the most beds in ${activeLoc}?`
@@ -9348,6 +9422,26 @@ class SpatialAIEngine {
     }
 
     // Default Fallback for Uncategorized Searches
+    if (this.context.drawnArea) {
+      chips.push({
+        label: lang === 'ar' ? 'المباني التجارية في هذه المنطقة' : 'Show commercial buildings in this area',
+        query: 'Show commercial buildings in this area'
+      });
+      chips.push({
+        label: lang === 'ar' ? 'الحدائق العامة في هذه المنطقة' : 'Show public parks in this area',
+        query: 'Show public parks in this area'
+      });
+      chips.push({
+        label: lang === 'ar' ? 'المرافق الحكومية في هذه المنطقة' : 'Show government facilities in this area',
+        query: 'Show government facilities in this area'
+      });
+      chips.push({
+        label: lang === 'ar' ? 'أيها الأقرب؟' : 'Which one is closest?',
+        query: 'Which one is closest?'
+      });
+      return chips;
+    }
+
     chips.push({
       label: lang === 'ar' ? `الأعلى تقييماً في ${activeLocAr}` : `Top rated in ${activeLoc}`,
       query: `Which one has the highest rating in ${activeLoc}?`
@@ -9396,6 +9490,21 @@ class SpatialAIEngine {
 
     const count = workingDataset.length;
     if (count === 0 && intent !== 'app_control' && intent !== 'route') {
+      if (aiResponseText && !aiResponseText.includes(GENERIC_ERROR_MESSAGE_EN) && !aiResponseText.includes(GENERIC_ERROR_MESSAGE_AR)) {
+        return {
+          intent: intent === 'district_count_summary' ? 'district_count_summary' : 'zero_results',
+          querySummary: cleanMarkdownText(aiResponseText),
+          aiMessageText: cleanMarkdownText(aiResponseText),
+          results: [],
+          structuredResults: null,
+          targetDistrict,
+          targetCategory: targetCategory || null,
+          targetSubcategory: targetSubcategory || null,
+          contextBadges: this.context.getActiveContextBadges(lang),
+          chips: this.generateContextualSuggestions('zero_results', lang, options, []),
+          mapAction: { type: 'fit_bounds' }
+        };
+      }
       return {
         intent: 'zero_results',
         querySummary: cleanMarkdownText(lang === 'ar' ? 'تعذر الإجابة عن الاستعلام' : 'Unable to answer query'),
@@ -9672,9 +9781,20 @@ export function executeDrawnAreaSpatialQuery({
     return false;
   });
 
-  // 2. Filter by active categories / subcategories if selected
+  // 2. Extract taxonomy entity if provided in query
+  const qClean = (query || '').toLowerCase().trim();
+  let taxonomyEntities = [];
+  let isAllQuery = false;
+  if (qClean) {
+    isAllQuery = /^(all|all places|all features|all facilities|everything|جميع المعالم|كافة المعالم|الكل|جميع الأماكن)$/i.test(qClean);
+    if (!isAllQuery) {
+      taxonomyEntities = resolveAllTaxonomyEntities(qClean);
+    }
+  }
+
+  // Filter by active categories / subcategories only when query does not specify explicit taxonomy entities
   const activeKeys = (activeCategories || []).map(k => k.trim()).filter(Boolean);
-  if (activeKeys.length > 0) {
+  if (activeKeys.length > 0 && taxonomyEntities.length === 0) {
     spatiallyMatched = spatiallyMatched.filter(item => {
       return activeKeys.some(key => {
         const isSub = isSubcategoryMatch(item.subcategory, key);
@@ -9684,9 +9804,16 @@ export function executeDrawnAreaSpatialQuery({
     });
   }
 
-  // 3. Filter by text search query if provided
-  const qClean = (query || '').toLowerCase().trim();
-  if (qClean) {
+  // 3. Filter by text search query or taxonomy entity
+  if (taxonomyEntities.length > 0) {
+    spatiallyMatched = spatiallyMatched.filter(item => {
+      return taxonomyEntities.some(ent => {
+        const catMatch = isCategoryMatch(item.category, ent.category);
+        const subMatch = ent.subcategory ? isSubcategoryMatch(item.subcategory, ent.subcategory) : true;
+        return catMatch && subMatch;
+      });
+    });
+  } else if (qClean && !isAllQuery) {
     spatiallyMatched = spatiallyMatched.filter(item => {
       const title = (item.title || '').toLowerCase();
       const sub = (item.subcategory || '').toLowerCase();
@@ -9721,16 +9848,30 @@ export function executeDrawnAreaSpatialQuery({
     areaDesc = lang === 'ar' ? 'المضلع الجغرافي المحدد' : 'drawn polygon boundary';
   }
 
-  const catNamesLabel = activeKeys.length > 0
-    ? activeCategories.join(', ')
-    : (qClean ? `"${query}"` : (lang === 'ar' ? 'المعالم المكانية' : 'places'));
+  const catNamesLabel = taxonomyEntities.length > 0
+    ? (lang === 'ar' ? taxonomyEntities.map(e => e.labelAr || e.category).join('، ') : taxonomyEntities.map(e => e.labelEn || e.category).join(', '))
+    : (activeKeys.length > 0
+        ? activeCategories.join(', ')
+        : (isAllQuery ? (lang === 'ar' ? 'جميع المعالم' : 'all features') : (qClean ? `"${query}"` : (lang === 'ar' ? 'المعالم المكانية' : 'places'))));
 
   const userQueryText = lang === 'ar'
     ? `البحث عن ${catNamesLabel} داخل ${areaDesc}`
     : `Find ${catNamesLabel} within ${areaDesc}`;
 
+  const isCountQuery = qClean && (qClean.includes('how many') || qClean.includes('count of') || qClean.includes('number of') || qClean.includes('كم عدد') || qClean.includes('كم منها'));
   let aiMessageText = '';
-  if (count > 0) {
+  if (isCountQuery) {
+    if (count > 0) {
+      const breakdownStr = Object.entries(subcatCounts).map(([sc, c]) => `${c} ${sc.toLowerCase()}`).join(', ');
+      aiMessageText = lang === 'ar'
+        ? `يوجد **${count}** من ${catNamesLabel} داخل **${areaDesc}**${breakdownStr ? ` (${breakdownStr})` : ''}.`
+        : `There are **${count}** ${catNamesLabel.toLowerCase()} inside **${areaDesc}**${breakdownStr ? ` (${breakdownStr})` : ''}.`;
+    } else {
+      aiMessageText = lang === 'ar'
+        ? `لا يوجد أي ${catNamesLabel} مسجلة داخل **${areaDesc}** ضمن قاعدة البيانات الحالية.`
+        : `There are **0** ${catNamesLabel.toLowerCase()} inside **${areaDesc}** in the current GIS dataset.`;
+    }
+  } else if (count > 0) {
     const breakdownStr = Object.entries(subcatCounts).map(([sc, c]) => `**${sc}** (${c})`).join(', ');
     aiMessageText = lang === 'ar'
       ? `تم تنفيذ الاستعلام المكاني: تم العثور على **${count}** معلم داخل ${areaDesc}. التصنيف: ${breakdownStr}.`
@@ -9743,7 +9884,7 @@ export function executeDrawnAreaSpatialQuery({
 
   const structuredResults = {
     title: `${catNamesLabel} (${count})`,
-    category: activeCategories[0] || 'Drawn Area',
+    category: activeCategories[0] || (taxonomyEntities.length > 0 ? taxonomyEntities[0].category : 'Drawn Area'),
     tabs: subcatTabs,
     activeTabId: subcatTabs.length > 0 ? subcatTabs[0].id : '',
     items: spatiallyMatched.map(r => ({
@@ -9784,16 +9925,20 @@ export function executeDrawnAreaSpatialQuery({
   const drawnChips = [];
   if (count > 0) {
     drawnChips.push({ label: lang === 'ar' ? 'الأعلى تقييماً في المنطقة' : 'Top rated in area', query: 'Which one has the highest rating in this area?' });
-    Object.keys(subcatCounts).slice(0, 3).forEach(sc => {
-      drawnChips.push({
-        label: lang === 'ar' ? `${SUBCAT_TRANSLATIONS_AR[sc] || sc} فقط` : `Only ${sc}`,
-        query: `Only show ${sc}`
+    Object.keys(subcatCounts)
+      .filter(sc => !/hosp|school/i.test(sc) && !/مستشف|مدرس/i.test(sc))
+      .slice(0, 3)
+      .forEach(sc => {
+        drawnChips.push({
+          label: lang === 'ar' ? `${SUBCAT_TRANSLATIONS_AR[sc] || sc} فقط` : `Only ${sc}`,
+          query: `Only show ${sc}`
+        });
       });
-    });
   } else {
-    drawnChips.push({ label: lang === 'ar' ? 'المستشفيات (5 كم)' : 'Hospitals (5km)', query: 'Hospitals within 5km' });
-    drawnChips.push({ label: lang === 'ar' ? 'المدارس (2 كم)' : 'Schools (2km)', query: 'Schools within 2km' });
+    drawnChips.push({ label: lang === 'ar' ? 'المراكز الحكومية (5 كم)' : 'Government facilities (5km)', query: 'Government facilities within 5km' });
+    drawnChips.push({ label: lang === 'ar' ? 'مرافق النقل (5 كم)' : 'Transport facilities (5km)', query: 'Transport facilities within 5km' });
     drawnChips.push({ label: lang === 'ar' ? 'الحدائق العامة' : 'Public parks', query: 'Public parks within 3km' });
+    drawnChips.push({ label: lang === 'ar' ? 'المباني التجارية' : 'Commercial Buildings', query: 'Commercial Buildings' });
   }
 
   return {

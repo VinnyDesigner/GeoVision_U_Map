@@ -32,6 +32,7 @@ export default function LeafletMap({
   onClearDrawnArea,
   lastDrawnQuery = null,
   restoredDrawnGeometry = null,
+  clearVisualDrawnTrigger = 0,
   activeRoute = null,
   isNavigating = false,
   navStepIndex = 0
@@ -279,6 +280,8 @@ export default function LeafletMap({
       return;
     }
 
+    // Disable double-click zoom during drawing gestures
+    map.doubleClickZoom.disable();
     map.getContainer().style.cursor = 'crosshair';
     let drawPoints = [];
     let previewLayer = null;
@@ -289,6 +292,16 @@ export default function LeafletMap({
         previewLayer = null;
       }
     };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        clearPreview();
+        drawPoints = [];
+        if (setActiveDrawTool) setActiveDrawTool(null);
+        if (showToast) showToast("Drawing cancelled");
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
 
     const handleMapClick = (e) => {
       const latlng = e.latlng;
@@ -334,6 +347,7 @@ export default function LeafletMap({
         } else {
           const center = drawPoints[0];
           const radius = map.distance(center, latlng);
+          if (radius < 5) return; // Ignore accidental double-click / jitter at same spot
           clearPreview();
           drawnGroup.clearLayers();
 
@@ -568,6 +582,9 @@ export default function LeafletMap({
 
     return () => {
       clearPreview();
+      drawPoints = [];
+      map.doubleClickZoom.enable();
+      window.removeEventListener('keydown', handleKeyDown);
       map.off('click', handleMapClick);
       map.off('dblclick', handleMapDblClick);
       map.off('mousemove', handleMouseMove);
@@ -623,7 +640,22 @@ export default function LeafletMap({
 
       map.fitBounds(circle.getBounds(), { padding: [40, 40], maxZoom: 15 });
     } else if ((geometryType === 'rectangle' || geometryType === 'square') && (bounds || coordinates)) {
-      const b = bounds || (coordinates && coordinates.length >= 3 ? L.latLngBounds(coordinates[0], coordinates[2]) : null);
+      let b = null;
+      if (bounds) {
+        if (typeof bounds.getSouthWest === 'function') {
+          b = bounds;
+        } else if (bounds._southWest && bounds._northEast) {
+          b = L.latLngBounds(
+            [bounds._southWest.lat, bounds._southWest.lng],
+            [bounds._northEast.lat, bounds._northEast.lng]
+          );
+        } else if (Array.isArray(bounds) && bounds.length >= 2) {
+          b = L.latLngBounds(bounds);
+        }
+      }
+      if (!b && coordinates && coordinates.length >= 2) {
+        b = L.latLngBounds(coordinates);
+      }
       if (b) {
         const rect = L.rectangle(b, {
           color: '#004B87',
@@ -634,15 +666,44 @@ export default function LeafletMap({
 
         rect.bindPopup(`
           <div style="font-family: Outfit, Inter, sans-serif; font-size: 12.5px; min-width: 160px; padding: 4px;">
-            <b style="color: #002B5B; font-size: 13px;">Restored Query Box</b><br/>
+            <b style="color: #002B5B; font-size: 13px;">Drawn Query Area</b><br/>
             <button onclick="window.__geovision_clear_draw_query();" style="margin-top: 8px; padding: 4px 10px; font-size: 11px; background: #EF4444; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Clear Query Area</button>
           </div>
         `);
 
         map.fitBounds(rect.getBounds(), { padding: [40, 40], maxZoom: 15 });
       }
+    } else if (geometryType === 'line' && coordinates && coordinates.length >= 2) {
+      const polyline = L.polyline(coordinates, {
+        color: '#004B87',
+        weight: 3.5,
+        dashArray: '6, 6'
+      }).addTo(drawnGroup);
+      map.fitBounds(polyline.getBounds(), { padding: [40, 40], maxZoom: 15 });
+    } else if ((geometryType === 'click' || geometryType === 'point') && (center || coordinates)) {
+      const pt = center || (coordinates && coordinates[0]);
+      if (pt) {
+        const pinHtml = `
+          <div style="position: relative; width: 24px; height: 32px; transform: translate(-50%, -100%); cursor: pointer;">
+            <div style="width: 22px; height: 22px; background: linear-gradient(135deg, #004B87 0%, #002B5B 100%); border: 2px solid #ffffff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 4px 10px rgba(0,43,91,0.35); display:flex; align-items:center; justify-content:center;">
+              <div style="width: 6px; height: 6px; background: #ffffff; border-radius: 50%; transform: rotate(45deg);"></div>
+            </div>
+          </div>
+        `;
+        L.marker(pt, {
+          icon: L.divIcon({ html: pinHtml, className: '', iconSize: [0, 0] })
+        }).addTo(drawnGroup);
+        map.flyTo([pt.lat, pt.lng || pt.lon], 14);
+      }
     }
   }, [restoredDrawnGeometry]);
+
+  // Clear visual drawn layers when signaled (e.g. after search results returned, or on new chat)
+  useEffect(() => {
+    if (clearVisualDrawnTrigger && drawnShapesGroupRef.current) {
+      drawnShapesGroupRef.current.clearLayers();
+    }
+  }, [clearVisualDrawnTrigger]);
 
   // Clear drawn layers when drawn area query is cleared
   useEffect(() => {
