@@ -593,10 +593,8 @@ export default function HelpSupportPage({
         </div>
 
         <div className="help-card-body">
-          <h3 className="help-card-title">{card.title}</h3>
-          <p className="help-card-desc">{card.desc}</p>
-
-          <div className="help-card-footer">
+          <div className="help-card-header-row">
+            <h3 className="help-card-title">{card.title}</h3>
             <button
               type="button"
               className="help-card-learn-btn"
@@ -613,6 +611,7 @@ export default function HelpSupportPage({
               )}
             </button>
           </div>
+          <p className="help-card-desc">{card.desc}</p>
         </div>
       </div>
     );
