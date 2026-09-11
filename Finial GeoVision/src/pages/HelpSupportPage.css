@@ -330,48 +330,51 @@
 }
 
 .help-card {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 20px;
-  padding: 18px 18px 22px 18px;
-  box-shadow: 0 4px 20px rgba(0, 43, 91, 0.04);
+  border-radius: 24px !important;
+  background: linear-gradient(180deg, rgba(125, 161, 196, 0.30) 0.93%, rgba(33, 90, 158, 0.30) 99.62%) !important;
+  box-shadow: 1.667px -1.667px 1.667px 0 #498DDF inset, -1.667px 1.667px 1.667px 0 rgba(255, 255, 255, 0.60) inset !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  padding: 14px 14px 20px 14px;
+  box-sizing: border-box;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
-  position: relative;
-  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
+  border: none !important;
+  position: relative;
 }
 
 .help-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 14px 34px rgba(0, 43, 91, 0.09);
-  border-color: #BAE6FD;
+  box-shadow: 1.667px -1.667px 1.667px 0 #498DDF inset, -1.667px 1.667px 1.667px 0 rgba(255, 255, 255, 0.90) inset, 0 14px 34px rgba(33, 90, 158, 0.22) !important;
 }
 
 .help-dark .help-card {
-  background: rgba(15, 23, 42, 0.82);
-  border-color: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.35) 0.93%, rgba(15, 23, 42, 0.75) 99.62%) !important;
+  box-shadow: 1.667px -1.667px 1.667px 0 rgba(56, 189, 248, 0.5) inset, -1.667px 1.667px 1.667px 0 rgba(255, 255, 255, 0.20) inset !important;
+  border: none !important;
 }
 
 .help-dark .help-card:hover {
-  border-color: rgba(56, 189, 248, 0.35);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+  border-color: transparent !important;
+  box-shadow: 1.667px -1.667px 1.667px 0 #38BDF8 inset, -1.667px 1.667px 1.667px 0 rgba(255, 255, 255, 0.40) inset, 0 14px 34px rgba(0, 0, 0, 0.6) !important;
 }
 
 /* ── 3D Illustration Area ── */
 .help-card-illustration-wrap {
   width: 100%;
-  border-radius: 14px;
+  border-radius: 18px;
   overflow: hidden;
-  background: linear-gradient(180deg, #F8FAFD 0%, #EEF4FA 100%);
+  background: rgba(255, 255, 255, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  border: 1px solid rgba(0, 75, 135, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 4px 16px rgba(0, 43, 91, 0.05);
 }
 
 .help-card-illustration-top {
@@ -387,8 +390,9 @@
 }
 
 .help-dark .help-card-illustration-wrap {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.65) 0%, rgba(15, 23, 42, 0.9) 100%);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .help-card-illustration-img {
@@ -406,13 +410,14 @@
 
 /* ── Card Content Body ── */
 .help-card-body {
-  padding-top: 18px;
+  padding: 16px 8px 4px 8px;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
 }
 
 .help-card-title {
+  font-family: 'Outfit', 'Inter', sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #002B5B;
@@ -426,19 +431,20 @@
 }
 
 .help-dark .help-card-title {
-  color: #FFFFFF;
+  color: #F8FAFC;
 }
 
 .help-card-desc {
   font-size: 13.5px;
   line-height: 1.55;
-  color: #475569;
-  margin: 0 0 18px 0;
+  color: #1E3A5F;
+  margin: 0 0 16px 0;
   flex-grow: 1;
+  font-weight: 450;
 }
 
 .help-dark .help-card-desc {
-  color: #94A3B8;
+  color: #CBD5E1;
 }
 
 /* ── Learn Button (Mockup Pill Style) ── */
@@ -450,8 +456,8 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: #F0F7FF;
-  border: 1px solid #D0E5F9;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 75, 135, 0.25);
   border-radius: 9999px;
   padding: 7px 18px;
   font-size: 13.5px;
@@ -462,6 +468,7 @@
   transition: all 0.2s ease;
   font-family: inherit;
   outline: none;
+  box-shadow: 0 2px 8px rgba(0, 43, 91, 0.08);
 }
 
 .help-card-learn-arrow {
@@ -472,6 +479,7 @@
   background: #004B87;
   border-color: #004B87;
   color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(0, 75, 135, 0.28);
 }
 
 .help-card:hover .help-card-learn-arrow {
