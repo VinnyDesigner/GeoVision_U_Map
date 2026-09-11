@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, GraduationCap, Heart, Car, Trees, LayoutGrid, Plus, Map, Info, Brain, Send, ChevronLeft, ChevronRight, Zap, Compass, Trophy, Leaf, HardHat, Home, ShieldCheck, Sun, Hammer, Flame, Sprout, Briefcase, User, Lock, Eye, EyeOff, LogIn, Layers, Sparkles, Landmark, Mail, AlertCircle, CheckCircle, ArrowLeft, ArrowRight, Check, LogOut, X } from 'lucide-react';
+import { ArrowUp, GraduationCap, Heart, Car, Trees, LayoutGrid, Plus, Map, Info, Brain, Send, ChevronLeft, ChevronRight, Zap, Compass, Trophy, Leaf, HardHat, Home, ShieldCheck, Sun, Hammer, Flame, Sprout, Briefcase, User, Lock, Eye, EyeOff, LogIn, Layers, Sparkles, Landmark, Mail, AlertCircle, CheckCircle, ArrowLeft, ArrowRight, Check, LogOut, X, Clock, Search } from 'lucide-react';
 import FourPointStar from '../components/FourPointStar.jsx';
 import CommonHeader from '../components/CommonHeader.jsx';
 import FoldText from '../components/FoldText.jsx';
@@ -53,7 +53,8 @@ export default function LandingPage({
   setActiveTab,
   setAiPanelSubView,
   setIsAISearchBarOpen,
-  setIsAiMinimized
+  setIsAiMinimized,
+  searchHistory = []
 }) {
   const [chipPage, setChipPage] = useState(0);
   const [isMobileDragActive, setIsMobileDragActive] = useState(false);
@@ -666,6 +667,19 @@ export default function LandingPage({
                     <button className="landing-chip-btn landing-chip-toggle-btn" onClick={() => setIsMobileDragActive(false)} title="Collapse">
                       <ChevronLeft size={16} /> <span>Back</span>
                     </button>
+                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Government Services' })}>
+                      <Landmark size={15} />
+                      <span>{t.government}</span>
+                    </button>
+                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Tourism' })}>
+                      <Compass size={15} /> <span>{t.tourism}</span>
+                    </button>
+                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Infrastructure' })}>
+                      <HardHat size={15} /> <span>{t.infrastructure}</span>
+                    </button>
+                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Housing' })}>
+                      <Home size={15} /> <span>{t.housing}</span>
+                    </button>
                     <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Education' })}>
                       <GraduationCap size={15} /> <span>{t.education}</span>
                     </button>
@@ -677,25 +691,6 @@ export default function LandingPage({
                     </button>
                     <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Environment' })}>
                       <Leaf size={15} /> <span>{t.environment}</span>
-                    </button>
-                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Government Services' })}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 22V11a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11" />
-                        <path d="M12 2v4" />
-                        <path d="M8 6h8" />
-                        <path d="M10 18h4" />
-                        <path d="M10 14h4" />
-                      </svg>
-                      <span>{t.government}</span>
-                    </button>
-                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Tourism' })}>
-                      <Compass size={15} /> <span>{t.tourism}</span>
-                    </button>
-                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Infrastructure' })}>
-                      <HardHat size={15} /> <span>{t.infrastructure}</span>
-                    </button>
-                    <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Housing' })}>
-                      <Home size={15} /> <span>{t.housing}</span>
                     </button>
                     <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Public Safety' })}>
                       <ShieldCheck size={15} /> <span>{t.publicSafety}</span>
@@ -726,17 +721,18 @@ export default function LandingPage({
                   <div className="landing-chips-wrapper">
                     {chipPage === 0 && (
                       <>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Education' })}>
-                          <GraduationCap size={15} /> <span>{t.education}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Government Services' })}>
+                          <Landmark size={15} />
+                          <span>{t.government}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Healthcare' })}>
-                          <Heart size={15} /> <span>{t.healthcare}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Tourism' })}>
+                          <Compass size={15} /> <span>{t.tourism}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Transport' })}>
-                          <Car size={15} /> <span>{t.transportation}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Infrastructure' })}>
+                          <HardHat size={15} /> <span>{t.infrastructure}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Environment' })}>
-                          <Leaf size={15} /> <span>{t.environment}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Housing' })}>
+                          <Home size={15} /> <span>{t.housing}</span>
                         </button>
                         <button className="landing-chip-btn landing-chip-more-btn" onClick={() => {
                           if (window.innerWidth <= 767) {
@@ -756,24 +752,17 @@ export default function LandingPage({
                         <button className="landing-chip-btn landing-chip-toggle-btn" onClick={() => setChipPage(0)} title="Previous Page">
                           <ChevronLeft size={16} />
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Government Services' })}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 22V11a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11" />
-                            <path d="M12 2v4" />
-                            <path d="M8 6h8" />
-                            <path d="M10 18h4" />
-                            <path d="M10 14h4" />
-                          </svg>
-                          <span>{t.government}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Education' })}>
+                          <GraduationCap size={15} /> <span>{t.education}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Tourism' })}>
-                          <Compass size={15} /> <span>{t.tourism}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Healthcare' })}>
+                          <Heart size={15} /> <span>{t.healthcare}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Infrastructure' })}>
-                          <HardHat size={15} /> <span>{t.infrastructure}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Transport' })}>
+                          <Car size={15} /> <span>{t.transportation}</span>
                         </button>
-                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Housing' })}>
-                          <Home size={15} /> <span>{t.housing}</span>
+                        <button className="landing-chip-btn" onClick={() => handleUnifiedSearch({ category: 'Environment' })}>
+                          <Leaf size={15} /> <span>{t.environment}</span>
                         </button>
                         <button className="landing-chip-btn landing-chip-toggle-btn" onClick={() => setChipPage(2)} title="Next Page">
                           <ChevronRight size={16} />

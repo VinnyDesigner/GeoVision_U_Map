@@ -3463,6 +3463,7 @@ function App() {
           setAiPanelSubView={setAiPanelSubView}
           setIsAISearchBarOpen={setIsAISearchBarOpen}
           setIsAiMinimized={setIsAiMinimized}
+          searchHistory={searchHistory}
         />
         <FloatingFeedbackButton
           onClick={() => setIsFeedbackOpen(true)}
@@ -6950,6 +6951,11 @@ function App() {
                                                           title={lang === 'ar' ? 'عرض التفاصيل' : "View Info"}
                                                           onClick={(e) => {
                                                             e.stopPropagation();
+                                                            setSelectedLocation({ ...item, locateTrigger: Date.now() });
+                                                            const areaToRestore = item.drawnArea || msg.drawnArea || lastDrawnQuery;
+                                                            if (areaToRestore) {
+                                                              setRestoredDrawnGeometry({ ...areaToRestore, trigger: Date.now() });
+                                                            }
                                                             setChatMessages(prev => prev.map((m, i) => {
                                                               if (i === idx) {
                                                                 const newItems = m.structuredResults.items.map(it => it.id === item.id ? { ...it, showDetails: !it.showDetails } : it);
@@ -6993,6 +6999,7 @@ function App() {
                                                             className={`structured-subtab-btn ${(item.activeDetailTab || 'overview') === 'overview' ? 'active' : ''}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
+                                                              setSelectedLocation({ ...item, locateTrigger: Date.now() });
                                                               setActiveRoute(null);
                                                               setIsNavigating(false);
                                                               setNavStepIndex(0);
@@ -7013,6 +7020,7 @@ function App() {
                                                             className={`structured-subtab-btn ${(item.activeDetailTab || 'overview') === 'details' ? 'active' : ''}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
+                                                              setSelectedLocation({ ...item, locateTrigger: Date.now() });
                                                               setActiveRoute(null);
                                                               setIsNavigating(false);
                                                               setNavStepIndex(0);
