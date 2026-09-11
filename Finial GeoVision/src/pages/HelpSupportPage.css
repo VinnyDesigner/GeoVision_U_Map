@@ -64,7 +64,7 @@
   box-sizing: border-box;
 }
 
-/* ── Sticky Transparent Header over Hero ── */
+/* ── Sticky Header ── */
 .help-support-page-wrapper .landing-header {
   position: sticky !important;
   top: 0;
@@ -72,27 +72,22 @@
   right: 0;
   width: 100%;
   z-index: 1000 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-bottom: none !important;
 }
 
-.help-support-page-wrapper .landing-header::before,
-.help-support-page-wrapper .landing-header::after {
-  display: none !important;
-  opacity: 0 !important;
-  background: transparent !important;
-}
-
-/* ── Hero Section (Extends all the way behind header to top of viewport) ── */
+/* ── Hero Section (Extends Behind Header like About Us) ── */
 .help-hero-section {
   position: relative;
+  min-height: 360px;
+  max-height: 460px;
   margin-top: -64px;
-  padding: 112px 0 48px 0;
-  min-height: 380px;
+  padding: 108px 24px 44px 24px;
   text-align: center;
   overflow: hidden;
-  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
 }
 
 .help-hero-bg-wrapper {
@@ -101,7 +96,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -109,20 +106,20 @@
 .help-hero-bg-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
+  object-fit: fill;
+  display: block;
   image-rendering: -webkit-optimize-contrast;
-  image-rendering: high-quality;
-  filter: contrast(1.05) saturate(1.06);
+  image-rendering: crisp-edges;
+  filter: contrast(1.06) saturate(1.05) brightness(1.01);
   transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 [dir="rtl"] .help-hero-bg-img {
-  object-position: center top;
+  object-position: center;
 }
 
 .help-light .help-hero-bg-wrapper {
-  background: #EBF4FC;
+  background: transparent;
 }
 
 .help-light .help-hero-bg-img {
@@ -134,15 +131,15 @@
 }
 
 .help-dark .help-hero-bg-img {
-  opacity: 0.36;
-  filter: brightness(0.8) contrast(1.15) saturate(1.1);
+  opacity: 0.42;
+  filter: brightness(0.85) contrast(1.15) saturate(1.1);
 }
 
 .help-dark .help-hero-bg-wrapper::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(11, 17, 32, 0.4) 0%, rgba(11, 17, 32, 0.9) 100%);
+  background: linear-gradient(180deg, rgba(11, 17, 32, 0.4) 0%, rgba(11, 17, 32, 0.88) 100%);
   pointer-events: none;
 }
 
