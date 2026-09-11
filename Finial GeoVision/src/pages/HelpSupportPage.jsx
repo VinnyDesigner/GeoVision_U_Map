@@ -20,7 +20,20 @@ import {
 import CommonHeader from '../components/CommonHeader.jsx';
 import helpHeroBg from '../assets/help_support_hero_bg.png';
 import aboutHeroBgDark from '../assets/about_hero_bg_dark.png';
+import cardAiSearchImg from '../assets/help/card_ai_search_3d.png';
+import cardMapToolsImg from '../assets/help/card_map_tools_3d.png';
+import cardExploreAnalyzeImg from '../assets/help/card_explore_analyze_3d.png';
+import cardHistoryFavoritesImg from '../assets/help/card_history_favorites_3d.png';
+import cardQuickTutorialsImg from '../assets/help/card_quick_tutorials_3d.png';
 import './HelpSupportPage.css';
+
+const CARD_ILLUSTRATIONS = {
+  'ai-search': cardAiSearchImg,
+  'map-tools': cardMapToolsImg,
+  'explore-analyze': cardExploreAnalyzeImg,
+  'history-favorites': cardHistoryFavoritesImg,
+  'quick-tutorials': cardQuickTutorialsImg
+};
 
 const HELP_DATA = {
   en: {
@@ -50,6 +63,7 @@ const HELP_DATA = {
       {
         id: "ai-search",
         title: "AI Spatial Search",
+        desc: "Ask questions in natural language, explore spatial information, and get intelligent answers. Draw an area on the map to refine your search and discover insights faster.",
         icon: "sparkles",
         items: [
           "Ask AI questions",
@@ -86,6 +100,7 @@ const HELP_DATA = {
       {
         id: "map-tools",
         title: "Map Tools",
+        desc: "Explore and customize your map with layers, categories, basemaps, location tools, drawing, measurement, and intuitive zoom and navigation controls.",
         icon: "map",
         items: [
           "Explore the map",
@@ -128,6 +143,7 @@ const HELP_DATA = {
       {
         id: "explore-analyze",
         title: "Explore & Analyze",
+        desc: "Dive deeper into your search results with detailed feature information, routing, analytics, and GIS printing tools to understand and share your spatial insights.",
         icon: "analytics",
         items: [
           "Search Results",
@@ -165,6 +181,7 @@ const HELP_DATA = {
       {
         id: "history-favorites",
         title: "History & Favorites",
+        desc: "Easily revisit your previous searches, pin important queries, and save frequently used locations or results to quickly access them whenever you need.",
         icon: "bookmark",
         items: [
           "History",
@@ -192,6 +209,38 @@ const HELP_DATA = {
           "Open My Saved Favorites",
           "Manage bookmarked locations"
         ]
+      },
+      {
+        id: "quick-tutorials",
+        title: "Quick Tutorials",
+        desc: "Get started with GeoVision through step-by-step video tutorials and a detailed user guide designed to help you quickly understand and use the platform.",
+        icon: "play",
+        items: [
+          "Video Tutorial Masterclass",
+          "Abu Dhabi SDI User Guide (PDF)",
+          "Feature Walkthroughs",
+          "Step-by-Step Quick Start"
+        ],
+        overview: "Get started with GeoVision through our comprehensive video masterclass and official Abu Dhabi SDI user manual covering map navigation, AI spatial searches, and analytics.",
+        steps: [
+          {
+            title: "Video Tutorial Masterclass",
+            desc: "Watch an in-depth video guide demonstrating core platform capabilities, geospatial tools, and practical use cases across Abu Dhabi."
+          },
+          {
+            title: "Comprehensive User Guide (PDF)",
+            desc: "Read our official documentation covering map layers, GIS printing, spatial query formats, and best practices."
+          },
+          {
+            title: "Interactive Map Onboarding",
+            desc: "Practice using real geospatial queries, category filters, and coordinate inspection directly on the interactive map."
+          }
+        ],
+        sampleQueries: [
+          "Open Video Masterclass",
+          "Download User Guide (PDF)",
+          "Show public parks in Abu Dhabi"
+        ]
       }
     ]
   },
@@ -205,7 +254,7 @@ const HELP_DATA = {
     noResultsTitle: "لم يتم العثور على مواضيع مطابقة",
     noResultsDesc: "يرجى تجربة كلمات بحث أخرى أو تصفح الأقسام الرئيسية أدناه.",
     resetSearch: "عرض كافة المواضيع",
-    learnMore: "تعرف على المزيد",
+    learnMore: "تعلم المزيد",
     backToTopics: "العودة إلى كافة المواضيع",
     tryOnMap: "تجربة على الخريطة",
     quickTutorialsTitle: "دروس تعليمية سريعة",
@@ -223,6 +272,7 @@ const HELP_DATA = {
       {
         id: "ai-search",
         title: "البحث المكاني بالذكاء الاصطناعي",
+        desc: "اطرح أسئلتك بلغة طبيعية، واستكشف المعلومات المكانية، واحصل على إجابات ذكية. ارسم منطقة على الخريطة لتخصيص بحثك واكتشاف الرؤى بسرعة.",
         icon: "sparkles",
         items: [
           "طرح أسئلة على الذكاء الاصطناعي",
@@ -259,6 +309,7 @@ const HELP_DATA = {
       {
         id: "map-tools",
         title: "أدوات الخريطة",
+        desc: "استكشف خريطتك وخصصها باستخدام الطبقات والفئات وخرائط الأساس وأدوات تحديد الموقع والرسم والقياس والتنقل السلس.",
         icon: "map",
         items: [
           "استكشاف الخريطة",
@@ -301,6 +352,7 @@ const HELP_DATA = {
       {
         id: "explore-analyze",
         title: "الاستكشاف والتحليل",
+        desc: "تعمق في نتائج بحثك مع تفاصيل المعالم، وتوجيه المسارات، والتحليلات الجغرافية، وأدوات طباعة الخرائط الرسمية.",
         icon: "analytics",
         items: [
           "نتائج البحث",
@@ -338,6 +390,7 @@ const HELP_DATA = {
       {
         id: "history-favorites",
         title: "السجل والمفضلة",
+        desc: "أعد زيارة عمليات البحث السابقة بسهولة، وثبّت الاستعلامات المهمة، واحفظ المواقع والنتائج المفضلة للوصول السريع إليها.",
         icon: "bookmark",
         items: [
           "سجل البحث",
@@ -364,6 +417,38 @@ const HELP_DATA = {
           "تثبيت هذا الاستعلام للرجوع إليه لاحقاً",
           "فتح قائمة المواقع المفضلة",
           "إدارة المعالم المحفوظة"
+        ]
+      },
+      {
+        id: "quick-tutorials",
+        title: "دروس تعليمية سريعة",
+        desc: "ابدأ استخدام جيو فيجن عبر مقاطع فيديو تفصيلية ودليل مستخدم شامل مصمم لمساعدتك على فهم واستخدام المنصة بسرعة.",
+        icon: "play",
+        items: [
+          "فيديو توضيحي تفاعلي",
+          "دليل مستخدم جيو فيجن (PDF)",
+          "استكشاف المعالم والطبقات",
+          "إرشادات البدء السريع"
+        ],
+        overview: "ابدأ رحلتك مع جيو فيجن عبر الفيديو التعليمي الشامل ودليل المستخدم الرسمي لإمارة أبوظبي الذي يغطي أدوات الخريطة واستعلامات الذكاء الاصطناعي.",
+        steps: [
+          {
+            title: "فيديو تدريبي تفصيلي",
+            desc: "شاهد دليلاً مصوراً خطوة بخطوة يوضح الإمكانات الأساسية للمنصة وأدوات نظم المعلومات الجغرافية وحالات الاستخدام."
+          },
+          {
+            title: "دليل المستخدم الرسمي (PDF)",
+            desc: "اقرأ وتصفح الدليل الشامل الذي يغطي طبقات الخريطة وطباعة الخرائط الجغرافية وصيغ الاستعلام وأفضل الممارسات."
+          },
+          {
+            title: "جولة تفاعلية على الخريطة",
+            desc: "تدرب على تنفيذ الاستعلامات المكانية الحقيقية وتصفية الفئات وفحص الإحداثيات مباشرة على الخريطة التفاعلية."
+          }
+        ],
+        sampleQueries: [
+          "مشاهدة الفيديو التعليمي",
+          "فتح دليل المستخدم (PDF)",
+          "اعرض الحدائق العامة في أبوظبي"
         ]
       }
     ]
@@ -440,12 +525,13 @@ export default function HelpSupportPage({
   const filteredCards = data.cards.filter(card => {
     if (!trimmedSearch) return true;
     const titleMatch = card.title.toLowerCase().includes(trimmedSearch);
-    const itemMatch = card.items.some(item => item.toLowerCase().includes(trimmedSearch));
-    const stepMatch = card.steps.some(step =>
+    const descMatch = card.desc && card.desc.toLowerCase().includes(trimmedSearch);
+    const itemMatch = card.items && card.items.some(item => item.toLowerCase().includes(trimmedSearch));
+    const stepMatch = card.steps && card.steps.some(step =>
       step.title.toLowerCase().includes(trimmedSearch) ||
       step.desc.toLowerCase().includes(trimmedSearch)
     );
-    return titleMatch || itemMatch || stepMatch;
+    return titleMatch || descMatch || itemMatch || stepMatch;
   });
 
   const selectedTopic = data.cards.find(c => c.id === selectedTopicId);
@@ -460,6 +546,8 @@ export default function HelpSupportPage({
         return <BarChart2 size={size} strokeWidth={2.2} />;
       case 'bookmark':
         return <Bookmark size={size} strokeWidth={2.2} />;
+      case 'play':
+        return <Play size={size} strokeWidth={2.2} />;
       default:
         return <HelpCircle size={size} strokeWidth={2.2} />;
     }
@@ -476,6 +564,58 @@ export default function HelpSupportPage({
     if (showToast) {
       showToast(isRtl ? `جاري البحث: ${sampleQuery}` : `Running query: "${sampleQuery}"`);
     }
+  };
+
+  const renderCard = (card, rowType = 'standard') => {
+    const illustrationSrc = CARD_ILLUSTRATIONS[card.id];
+    return (
+      <div
+        key={card.id}
+        className={`help-card help-card-${rowType}`}
+        onClick={() => setSelectedTopicId(card.id)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setSelectedTopicId(card.id);
+          }
+        }}
+      >
+        <div className={`help-card-illustration-wrap help-card-illustration-${rowType}`}>
+          {illustrationSrc && (
+            <img
+              src={illustrationSrc}
+              alt={card.title}
+              className="help-card-illustration-img"
+              loading="lazy"
+            />
+          )}
+        </div>
+
+        <div className="help-card-body">
+          <h3 className="help-card-title">{card.title}</h3>
+          <p className="help-card-desc">{card.desc}</p>
+
+          <div className="help-card-footer">
+            <button
+              type="button"
+              className="help-card-learn-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedTopicId(card.id);
+              }}
+            >
+              <span>{data.learnMore}</span>
+              {isRtl ? (
+                <ArrowLeft size={13} strokeWidth={2.4} className="help-card-learn-arrow" />
+              ) : (
+                <ArrowRight size={13} strokeWidth={2.4} className="help-card-learn-arrow" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -617,6 +757,28 @@ export default function HelpSupportPage({
 
             <p className="help-detail-overview">{selectedTopic.overview}</p>
 
+            {/* Quick Action Buttons for Quick Tutorials Topic */}
+            {selectedTopic.id === 'quick-tutorials' && (
+              <div className="help-detail-tutorials-actions">
+                <button
+                  type="button"
+                  className="help-detail-action-btn video-action"
+                  onClick={() => setIsVideoModalOpen(true)}
+                >
+                  <Play size={16} fill="currentColor" />
+                  <span>{data.videoTutorialBtn}</span>
+                </button>
+                <button
+                  type="button"
+                  className="help-detail-action-btn pdf-action"
+                  onClick={() => setIsPdfModalOpen(true)}
+                >
+                  <FileText size={16} />
+                  <span>{data.userGuideBtn}</span>
+                </button>
+              </div>
+            )}
+
             <div className="help-detail-steps-grid">
               {selectedTopic.steps.map((step, idx) => (
                 <div key={idx} className="help-detail-step-card">
@@ -653,41 +815,23 @@ export default function HelpSupportPage({
             )}
           </div>
         ) : (
-          /* Main 4 Cards in 2-Column Grid */
+          /* Main 5 Topic Cards matching Mockup: 2 on top row, 3 on bottom row */
           <section className="help-cards-section">
             {filteredCards.length > 0 ? (
-              <div className="help-cards-grid">
-                {filteredCards.map((card) => (
-                  <div key={card.id} className="help-card">
-                    <div>
-                      <div className="help-card-header">
-                        <div className="help-card-icon-wrap">
-                          {getCardIcon(card.icon, 20)}
-                        </div>
-                        <h3 className="help-card-title">{card.title}</h3>
-                      </div>
-
-                      <ul className="help-card-content-list">
-                        {card.items.map((item, iIdx) => (
-                          <li key={iIdx} className="help-card-content-item">
-                            <span className="help-card-bullet" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="help-card-btn"
-                      onClick={() => setSelectedTopicId(card.id)}
-                    >
-                      <span>{data.learnMore}</span>
-                      {isRtl ? <ArrowLeft size={13} strokeWidth={2.4} /> : <ArrowRight size={13} strokeWidth={2.4} />}
-                    </button>
+              !trimmedSearch && filteredCards.length === data.cards.length ? (
+                <div className="help-cards-layout">
+                  <div className="help-cards-row-top">
+                    {filteredCards.slice(0, 2).map((card) => renderCard(card, 'top'))}
                   </div>
-                ))}
-              </div>
+                  <div className="help-cards-row-bottom">
+                    {filteredCards.slice(2, 5).map((card) => renderCard(card, 'bottom'))}
+                  </div>
+                </div>
+              ) : (
+                <div className="help-cards-filtered-grid">
+                  {filteredCards.map((card) => renderCard(card, 'standard'))}
+                </div>
+              )
             ) : (
               /* No Search Results */
               <div style={{ textAlign: 'center', padding: '40px 16px' }}>
@@ -700,7 +844,7 @@ export default function HelpSupportPage({
                 </p>
                 <button
                   type="button"
-                  className="help-card-btn"
+                  className="help-card-learn-btn"
                   onClick={() => setSearchQuery('')}
                   style={{ margin: '0 auto' }}
                 >
