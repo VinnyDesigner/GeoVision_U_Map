@@ -35,7 +35,8 @@ export default function LeafletMap({
   clearVisualDrawnTrigger = 0,
   activeRoute = null,
   isNavigating = false,
-  navStepIndex = 0
+  navStepIndex = 0,
+  lang = 'en'
 }) {
   const mapRef = useRef(null);
   const leafletInstance = useRef(null);
@@ -267,16 +268,19 @@ export default function LeafletMap({
       drawnShapesGroupRef.current = L.layerGroup().addTo(map);
     }
     const drawnGroup = drawnShapesGroupRef.current;
+    const vertexMarkersGroup = L.layerGroup().addTo(map);
 
     // Expose global cleanup handler for shape popups
     window.__geovision_clear_draw_query = () => {
       if (drawnShapesGroupRef.current) drawnShapesGroupRef.current.clearLayers();
+      vertexMarkersGroup.clearLayers();
       if (onClearDrawnArea) onClearDrawnArea();
       if (showToast) showToast("Spatial Query Area Cleared");
     };
 
     if (!activeDrawTool) {
       map.getContainer().style.cursor = '';
+      vertexMarkersGroup.clearLayers();
       return;
     }
 
@@ -293,12 +297,180 @@ export default function LeafletMap({
       }
     };
 
+    const clearVertexMarkers = () => {
+      vertexMarkersGroup.clearLayers();
+    };
+
+    const finishPolygon = () => {
+      // Filter out duplicate / zero-distance consecutive points
+      const cleanPoints = [];
+      for (let i = 0; i < drawPoints.length; i++) {
+        if (cleanPoints.length === 0) {
+          cleanPoints.push(drawPoints[i]);
+        } else {
+          const prev = cleanPoints[cleanPoints.length - 1];
+          if (map.distance(prev, drawPoints[i]) > 0.5) {
+            cleanPoints.push(drawPoints[i]);
+          }
+        }
+      }
+      if (cleanPoints.length < 3) return;
+      clearPreview();
+      clearVertexMarkers();
+      drawnGroup.clearLayers();
+
+      const poly = L.polygon(cleanPoints, {
+        color: '#004B87',
+        fillColor: '#004B87',
+        fillOpacity: 0.20,
+        weight: 2.5
+      }).addTo(drawnGroup);
+
+      poly.bindPopup(`
+        <div style="font-family: Outfit, Inter, sans-serif; font-size: 12.5px; min-width: 160px; padding: 4px;">
+          <b style="color: #002B5B; font-size: 13px;">Drawn Query Polygon</b><br/>
+          <span style="color: #475569; font-size: 11.5px;">Vertices: <b>${cleanPoints.length} points</b></span><br/>
+          <button onclick="window.__geovision_clear_draw_query();" style="margin-top: 8px; padding: 4px 10px; font-size: 11px; background: #EF4444; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Clear Query Area</button>
+        </div>
+      `);
+
+      if (onDrawnAreaComplete) {
+        onDrawnAreaComplete({
+          geometryType: 'polygon',
+          coordinates: [...cleanPoints]
+        });
+      }
+      drawPoints = [];
+      if (setActiveDrawTool) setActiveDrawTool(null);
+    };
+
+    const finishLine = () => {
+      const cleanPoints = [];
+      for (let i = 0; i < drawPoints.length; i++) {
+        if (cleanPoints.length === 0) {
+          cleanPoints.push(drawPoints[i]);
+        } else {
+          const prev = cleanPoints[cleanPoints.length - 1];
+          if (map.distance(prev, drawPoints[i]) > 0.5) {
+            cleanPoints.push(drawPoints[i]);
+          }
+        }
+      }
+      if (cleanPoints.length < 2) return;
+      clearPreview();
+      clearVertexMarkers();
+      drawnGroup.clearLayers();
+
+      const polyline = L.polyline(cleanPoints, {
+        color: '#004B87',
+        weight: 3.5,
+        dashArray: '6, 6'
+      }).addTo(drawnGroup);
+
+      let totalDist = 0;
+      for (let i = 0; i < cleanPoints.length - 1; i++) {
+        totalDist += map.distance(cleanPoints[i], cleanPoints[i + 1]);
+      }
+      const distStr = totalDist >= 1000 ? `${(totalDist / 1000).toFixed(2)} km` : `${Math.round(totalDist)} m`;
+
+      polyline.bindPopup(`
+        <div style="font-family: Outfit, Inter, sans-serif; font-size: 12.5px; min-width: 150px; padding: 4px;">
+          <b style="color: #002B5B; font-size: 13px;">Drawn Query Corridor</b><br/>
+          <span style="color: #475569; font-size: 11.5px;">Length: <b>${distStr}</b></span><br/>
+          <button onclick="window.__geovision_clear_draw_query();" style="margin-top: 8px; padding: 4px 10px; font-size: 11px; background: #EF4444; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Clear Query Line</button>
+        </div>
+      `);
+
+      if (onDrawnAreaComplete) {
+        onDrawnAreaComplete({
+          geometryType: 'line',
+          coordinates: [...cleanPoints]
+        });
+      }
+      drawPoints = [];
+      if (setActiveDrawTool) setActiveDrawTool(null);
+    };
+
+    const cancelDraw = () => {
+      clearPreview();
+      clearVertexMarkers();
+      drawPoints = [];
+      if (setActiveDrawTool) setActiveDrawTool(null);
+      if (showToast) showToast("Drawing cancelled");
+    };
+
+    const updateVertexMarkers = () => {
+      clearVertexMarkers();
+      if (drawPoints.length === 0) return;
+
+      if (activeDrawTool === 'polygon') {
+        const isClosable = drawPoints.length >= 3;
+        const startIcon = L.divIcon({
+          className: 'geovision-draw-start-anchor',
+          html: `
+            <div class="draw-anchor-wrapper ${isClosable ? 'is-closable' : ''}">
+              <div class="draw-anchor-ring ${isClosable ? 'pulse' : ''}"></div>
+              <div class="draw-anchor-dot"></div>
+            </div>
+          `,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+
+        const startMarker = L.marker(drawPoints[0], {
+          icon: startIcon,
+          zIndexOffset: 2500,
+          interactive: true
+        }).addTo(vertexMarkersGroup);
+
+        const handleStartFinish = (ev) => {
+          if (ev) L.DomEvent.stopPropagation(ev);
+          if (drawPoints.length >= 3) {
+            finishPolygon();
+          }
+        };
+        startMarker.on('click', handleStartFinish);
+        startMarker.on('dblclick', handleStartFinish);
+
+        for (let i = 1; i < drawPoints.length; i++) {
+          const vertexIcon = L.divIcon({
+            className: 'geovision-draw-vertex-dot',
+            html: `<div class="draw-vertex-point"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+          });
+          L.marker(drawPoints[i], {
+            icon: vertexIcon,
+            zIndexOffset: 900,
+            interactive: false
+          }).addTo(vertexMarkersGroup);
+        }
+      } else if (activeDrawTool === 'line') {
+        for (let i = 0; i < drawPoints.length; i++) {
+          const vertexIcon = L.divIcon({
+            className: 'geovision-draw-vertex-dot',
+            html: `<div class="draw-vertex-point"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+          });
+          L.marker(drawPoints[i], {
+            icon: vertexIcon,
+            zIndexOffset: 900,
+            interactive: false
+          }).addTo(vertexMarkersGroup);
+        }
+      }
+    };
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        clearPreview();
-        drawPoints = [];
-        if (setActiveDrawTool) setActiveDrawTool(null);
-        if (showToast) showToast("Drawing cancelled");
+        cancelDraw();
+      } else if (e.key === 'Enter') {
+        if (activeDrawTool === 'polygon' && drawPoints.length >= 3) {
+          finishPolygon();
+        } else if (activeDrawTool === 'line' && drawPoints.length >= 2) {
+          finishLine();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -438,89 +610,44 @@ export default function LeafletMap({
 
       if (activeDrawTool === 'line') {
         drawPoints.push(latlng);
-        if (drawPoints.length === 1) {
-          if (showToast) showToast("Click next point, or double-click to finish Line");
-        } else if (drawPoints.length >= 2) {
-          clearPreview();
-          drawnGroup.clearLayers();
-
-          const polyline = L.polyline(drawPoints, {
-            color: '#004B87',
-            weight: 3.5,
-            dashArray: '6, 6'
-          }).addTo(drawnGroup);
-
-          let totalDist = 0;
-          for (let i = 0; i < drawPoints.length - 1; i++) {
-            totalDist += map.distance(drawPoints[i], drawPoints[i + 1]);
-          }
-          const distStr = totalDist >= 1000 ? `${(totalDist / 1000).toFixed(2)} km` : `${Math.round(totalDist)} m`;
-
-          polyline.bindPopup(`
-            <div style="font-family: Outfit, Inter, sans-serif; font-size: 12.5px; min-width: 150px; padding: 4px;">
-              <b style="color: #002B5B; font-size: 13px;">Drawn Query Corridor</b><br/>
-              <span style="color: #475569; font-size: 11.5px;">Length: <b>${distStr}</b></span><br/>
-              <button onclick="window.__geovision_clear_draw_query();" style="margin-top: 8px; padding: 4px 10px; font-size: 11px; background: #EF4444; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Clear Query Line</button>
-            </div>
-          `);
-
-          if (onDrawnAreaComplete) {
-            onDrawnAreaComplete({
-              geometryType: 'line',
-              coordinates: [...drawPoints]
-            });
-          }
-          drawPoints = [];
-          if (setActiveDrawTool) setActiveDrawTool(null);
-        }
+        updateVertexMarkers();
         return;
       }
 
       if (activeDrawTool === 'polygon') {
-        drawPoints.push(latlng);
-        if (drawPoints.length === 1) {
-          if (showToast) showToast("Click next vertices. Double-click to close Polygon boundary");
-        } else if (drawPoints.length >= 3) {
-          clearPreview();
-          previewLayer = L.polygon(drawPoints, {
-            color: '#004B87',
-            fillColor: '#004B87',
-            fillOpacity: 0.18,
-            weight: 2
-          }).addTo(map);
+        // If 3 or more points exist, check if clicking near the starting endpoint to close
+        if (drawPoints.length >= 3) {
+          const firstPt = drawPoints[0];
+          const p1 = map.latLngToContainerPoint(firstPt);
+          const p2 = map.latLngToContainerPoint(latlng);
+          const pixelDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+          const meterDist = map.distance(firstPt, latlng);
+
+          if (pixelDist <= 35 || meterDist <= 45) {
+            finishPolygon();
+            return;
+          }
         }
+
+        // Avoid pushing identical coordinate if user accidentally clicked at exact same spot
+        if (drawPoints.length > 0) {
+          const prevPt = drawPoints[drawPoints.length - 1];
+          if (map.distance(prevPt, latlng) < 1) {
+            return;
+          }
+        }
+
+        drawPoints.push(latlng);
+        updateVertexMarkers();
       }
     };
 
     const handleMapDblClick = (e) => {
       L.DomEvent.stopPropagation(e);
       if (activeDrawTool === 'polygon' && drawPoints.length >= 3) {
-        clearPreview();
-        drawnGroup.clearLayers();
-
-        const poly = L.polygon(drawPoints, {
-          color: '#004B87',
-          fillColor: '#004B87',
-          fillOpacity: 0.20,
-          weight: 2.5
-        }).addTo(drawnGroup);
-
-        poly.bindPopup(`
-          <div style="font-family: Outfit, Inter, sans-serif; font-size: 12.5px; min-width: 160px; padding: 4px;">
-            <b style="color: #002B5B; font-size: 13px;">Drawn Query Polygon</b><br/>
-            <span style="color: #475569; font-size: 11.5px;">Vertices: <b>${drawPoints.length} points</b></span><br/>
-            <button onclick="window.__geovision_clear_draw_query();" style="margin-top: 8px; padding: 4px 10px; font-size: 11px; background: #EF4444; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Clear Query Area</button>
-          </div>
-        `);
-
-        if (onDrawnAreaComplete) {
-          onDrawnAreaComplete({
-            geometryType: 'polygon',
-            coordinates: [...drawPoints]
-          });
-        }
-        drawPoints = [];
-        if (setActiveDrawTool) setActiveDrawTool(null);
+        finishPolygon();
+      } else if (activeDrawTool === 'line' && drawPoints.length >= 2) {
+        finishLine();
       }
     };
 
@@ -538,7 +665,8 @@ export default function LeafletMap({
           fillColor: '#004B87',
           fillOpacity: 0.15,
           weight: 2,
-          dashArray: '4, 4'
+          dashArray: '4, 4',
+          interactive: false
         }).addTo(map);
       } else if (activeDrawTool === 'rectangle' || activeDrawTool === 'square') {
         const p1 = drawPoints[0];
@@ -557,22 +685,36 @@ export default function LeafletMap({
           fillColor: '#004B87',
           fillOpacity: 0.15,
           weight: 2,
-          dashArray: '4, 4'
+          dashArray: '4, 4',
+          interactive: false
         }).addTo(map);
       } else if (activeDrawTool === 'line') {
         clearPreview();
         previewLayer = L.polyline([...drawPoints, latlng], {
           color: '#004B87',
           weight: 2.5,
-          dashArray: '4, 4'
+          dashArray: '4, 4',
+          interactive: false
         }).addTo(map);
       } else if (activeDrawTool === 'polygon') {
         clearPreview();
-        previewLayer = L.polyline([...drawPoints, latlng], {
-          color: '#004B87',
-          weight: 2,
-          dashArray: '4, 4'
-        }).addTo(map);
+        if (drawPoints.length >= 2) {
+          previewLayer = L.polygon([...drawPoints, latlng], {
+            color: '#004B87',
+            fillColor: '#004B87',
+            fillOpacity: 0.16,
+            weight: 2,
+            dashArray: '4, 4',
+            interactive: false
+          }).addTo(map);
+        } else {
+          previewLayer = L.polyline([...drawPoints, latlng], {
+            color: '#004B87',
+            weight: 2,
+            dashArray: '4, 4',
+            interactive: false
+          }).addTo(map);
+        }
       }
     };
 
@@ -582,7 +724,11 @@ export default function LeafletMap({
 
     return () => {
       clearPreview();
+      clearVertexMarkers();
       drawPoints = [];
+      if (map.hasLayer(vertexMarkersGroup)) {
+        map.removeLayer(vertexMarkersGroup);
+      }
       map.doubleClickZoom.enable();
       window.removeEventListener('keydown', handleKeyDown);
       map.off('click', handleMapClick);
@@ -1267,5 +1413,9 @@ export default function LeafletMap({
     }
   }, [activeRoute, theme, isNavigating, navStepIndex]);
 
-  return <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: '100%', zIndex: 1 }} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '100%' }}>
+      <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: '100%', zIndex: 1 }} />
+    </div>
+  );
 }

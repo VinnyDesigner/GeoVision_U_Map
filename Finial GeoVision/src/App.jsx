@@ -4022,6 +4022,43 @@ function App() {
                   <span>{lang === 'ar' ? 'مربع' : 'Square'}</span>
                 </button>
               </div>
+
+              {/* CLEAR DRAWINGS & MEASUREMENTS ACTION */}
+              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.10)' : '1px solid rgba(0, 43, 91, 0.08)' }}>
+                <button
+                  type="button"
+                  className="popover-clear-draw-btn"
+                  onClick={() => {
+                    if (window.__geovision_clear_draw_query) {
+                      window.__geovision_clear_draw_query();
+                    }
+                    handleClearDrawnArea();
+                    setActiveDrawTool(null);
+                    setActiveLeftPopover(null);
+                    showToast(lang === 'ar' ? "تم مسح جميع الرسومات والقياسات" : "All drawings and measurements cleared");
+                  }}
+                  title={lang === 'ar' ? 'مسح جميع الرسومات والنطاقات' : 'Clear all drawings and query areas'}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: theme === 'dark' ? '1px solid rgba(239, 68, 68, 0.40)' : '1px solid rgba(239, 68, 68, 0.25)',
+                    background: theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(254, 242, 242, 0.90)',
+                    color: '#EF4444',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <Trash2 size={13} color="#EF4444" />
+                  <span>{lang === 'ar' ? 'مسح الرسومات' : 'Clear Drawings'}</span>
+                </button>
+              </div>
             </div>
           )}
 
