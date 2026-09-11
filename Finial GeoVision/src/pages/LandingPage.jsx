@@ -4,6 +4,7 @@ import FourPointStar from '../components/FourPointStar.jsx';
 import CommonHeader from '../components/CommonHeader.jsx';
 import FoldText from '../components/FoldText.jsx';
 import AuthModal from '../components/AuthModal.jsx';
+import AnimatedLetterO from '../components/AnimatedLetterO.jsx';
 import { authService } from '../services/authService.js';
 import passwordSuccessIcon from '../assets/password_success_icon.svg';
 
@@ -493,7 +494,9 @@ export default function LandingPage({
         /* ── DEFAULT HERO SEARCH VIEW ── */
         <div className="landing-hero">
           <div style={{ position: 'relative', display: 'inline-block' }}>
-            <h1 className="landing-main-title">Geo Vision</h1>
+            <h1 className="landing-main-title">
+              Geo Visi<AnimatedLetterO />n
+            </h1>
             <FourPointStar className="sparkle-decor-1" size={26} />
             <FourPointStar className="sparkle-decor-2" size={16} />
           </div>
