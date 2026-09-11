@@ -63,7 +63,7 @@ const HELP_DATA = {
       {
         id: "ai-search",
         title: "AI Spatial Search",
-        desc: "Ask questions in natural language, explore spatial information, and get intelligent answers. Draw an area on the map to refine your search and discover insights faster.",
+        desc: "Ask questions in natural language, draw map areas, and discover intelligent spatial answers.",
         icon: "sparkles",
         items: [
           "Ask AI questions",
@@ -100,7 +100,7 @@ const HELP_DATA = {
       {
         id: "map-tools",
         title: "Map Tools",
-        desc: "Explore and customize your map with layers, categories, basemaps, location tools, drawing, measurement, and intuitive zoom and navigation controls.",
+        desc: "Customize your map with layers, basemaps, location tools, drawing, and precision measurements.",
         icon: "map",
         items: [
           "Explore the map",
@@ -143,7 +143,7 @@ const HELP_DATA = {
       {
         id: "explore-analyze",
         title: "Explore & Analyze",
-        desc: "Dive deeper into your search results with detailed feature information, routing, analytics, and GIS printing tools to understand and share your spatial insights.",
+        desc: "Inspect detailed feature information, calculate routes, view analytics, and generate GIS map prints.",
         icon: "analytics",
         items: [
           "Search Results",
@@ -181,7 +181,7 @@ const HELP_DATA = {
       {
         id: "history-favorites",
         title: "History & Favorites",
-        desc: "Easily revisit your previous searches, pin important queries, and save frequently used locations or results to quickly access them whenever you need.",
+        desc: "Quickly revisit past searches, pin important queries, and bookmark your favorite locations.",
         icon: "bookmark",
         items: [
           "History",
@@ -213,7 +213,7 @@ const HELP_DATA = {
       {
         id: "quick-tutorials",
         title: "Quick Tutorials",
-        desc: "Get started with GeoVision through step-by-step video tutorials and a detailed user guide designed to help you quickly understand and use the platform.",
+        desc: "Get started with step-by-step video tutorials and comprehensive platform user guides.",
         icon: "play",
         items: [
           "Video Tutorial Masterclass",
@@ -272,7 +272,7 @@ const HELP_DATA = {
       {
         id: "ai-search",
         title: "البحث المكاني بالذكاء الاصطناعي",
-        desc: "اطرح أسئلتك بلغة طبيعية، واستكشف المعلومات المكانية، واحصل على إجابات ذكية. ارسم منطقة على الخريطة لتخصيص بحثك واكتشاف الرؤى بسرعة.",
+        desc: "اطرح أسئلتك بلغة طبيعية، وارسم المناطق على الخريطة لاكتشاف إجابات مكانية ذكية.",
         icon: "sparkles",
         items: [
           "طرح أسئلة على الذكاء الاصطناعي",
@@ -309,7 +309,7 @@ const HELP_DATA = {
       {
         id: "map-tools",
         title: "أدوات الخريطة",
-        desc: "استكشف خريطتك وخصصها باستخدام الطبقات والفئات وخرائط الأساس وأدوات تحديد الموقع والرسم والقياس والتنقل السلس.",
+        desc: "خصّص خريطتك باستخدام الطبقات، خرائط الأساس، وأدوات تحديد الموقع والرسم والقياس.",
         icon: "map",
         items: [
           "استكشاف الخريطة",
@@ -352,7 +352,7 @@ const HELP_DATA = {
       {
         id: "explore-analyze",
         title: "الاستكشاف والتحليل",
-        desc: "تعمق في نتائج بحثك مع تفاصيل المعالم، وتوجيه المسارات، والتحليلات الجغرافية، وأدوات طباعة الخرائط الرسمية.",
+        desc: "استعرض تفاصيل المعالم، واحسب المسارات، واطلع على التحليلات وطباعة الخرائط الجغرافية.",
         icon: "analytics",
         items: [
           "نتائج البحث",
@@ -390,7 +390,7 @@ const HELP_DATA = {
       {
         id: "history-favorites",
         title: "السجل والمفضلة",
-        desc: "أعد زيارة عمليات البحث السابقة بسهولة، وثبّت الاستعلامات المهمة، واحفظ المواقع والنتائج المفضلة للوصول السريع إليها.",
+        desc: "أعد زيارة عمليات البحث السابقة بسرعة، وثبّت الاستعلامات المهمة، واحفظ مواقعك المفضلة.",
         icon: "bookmark",
         items: [
           "سجل البحث",
@@ -422,7 +422,7 @@ const HELP_DATA = {
       {
         id: "quick-tutorials",
         title: "دروس تعليمية سريعة",
-        desc: "ابدأ استخدام جيو فيجن عبر مقاطع فيديو تفصيلية ودليل مستخدم شامل مصمم لمساعدتك على فهم واستخدام المنصة بسرعة.",
+        desc: "ابدأ استخدام المنصة عبر مقاطع الفيديو التعليمية ودليل المستخدم الشامل خطوة بخطوة.",
         icon: "play",
         items: [
           "فيديو توضيحي تفاعلي",
