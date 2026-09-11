@@ -64,7 +64,7 @@
   box-sizing: border-box;
 }
 
-/* ── Sticky Header ── */
+/* ── Sticky Transparent Header over Hero ── */
 .help-support-page-wrapper .landing-header {
   position: sticky !important;
   top: 0;
@@ -72,14 +72,27 @@
   right: 0;
   width: 100%;
   z-index: 1000 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
 }
 
-/* ── Hero Section ── */
+.help-support-page-wrapper .landing-header::before,
+.help-support-page-wrapper .landing-header::after {
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+}
+
+/* ── Hero Section (Extends all the way behind header to top of viewport) ── */
 .help-hero-section {
   position: relative;
-  padding: 60px 0 44px 0;
+  margin-top: -64px;
+  padding: 112px 0 48px 0;
+  min-height: 380px;
   text-align: center;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .help-hero-bg-wrapper {
@@ -97,12 +110,15 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  object-position: center top;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+  filter: contrast(1.05) saturate(1.06);
   transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 [dir="rtl"] .help-hero-bg-img {
-  object-position: center;
+  object-position: center top;
 }
 
 .help-light .help-hero-bg-wrapper {
