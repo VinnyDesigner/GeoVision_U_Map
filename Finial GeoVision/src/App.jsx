@@ -139,6 +139,7 @@ import FloatingFeedbackButton from './components/FloatingFeedbackButton.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AboutUsPage from './pages/AboutUsPage.jsx';
 import HelpSupportPage from './pages/HelpSupportPage.jsx';
+import StructuredTabsBar from './components/StructuredTabsBar.jsx';
 
 function App() {
   const [theme, setTheme] = useState(() => {
@@ -6864,13 +6865,23 @@ function App() {
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                           <button
+                                            type="button"
                                             className="structured-accordion-toggle"
                                             style={{
+                                              background: 'transparent',
+                                              border: 'none',
+                                              outline: 'none',
+                                              padding: '2px',
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              color: theme === 'dark' ? '#38BDF8' : '#00468C',
                                               transform: msg.isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                                              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease'
                                             }}
                                           >
-                                            <ChevronDown size={14} />
+                                            <ChevronDown size={18} strokeWidth={2.4} />
                                           </button>
                                         </div>
                                       </div>
@@ -6878,32 +6889,28 @@ function App() {
                                       {/* Body Items List */}
                                       {msg.isExpanded && (
                                         <div className="structured-results-body">
-                                          {/* Tab navigation pills if multiple categories */}
+                                          {/* Tab navigation pills with left/right arrows if multiple categories */}
                                           {msg.structuredResults.tabs && msg.structuredResults.tabs.length > 1 && (
-                                            <div className="structured-tabs-bar">
-                                              {msg.structuredResults.tabs.map(tab => (
-                                                <button
-                                                  key={tab.id}
-                                                  className={`structured-tab-btn ${(!msg.structuredResults.activeTabId && tab.id === 'all') || msg.structuredResults.activeTabId === tab.id ? 'active' : ''}`}
-                                                  onClick={() => {
-                                                    setChatMessages(prev => prev.map((m, i) => {
-                                                      if (i === idx) {
-                                                        return {
-                                                          ...m,
-                                                          structuredResults: {
-                                                            ...m.structuredResults,
-                                                            activeTabId: tab.id === 'all' ? '' : tab.id
-                                                          }
-                                                        };
+                                            <StructuredTabsBar
+                                              tabs={msg.structuredResults.tabs}
+                                              activeTabId={msg.structuredResults.activeTabId}
+                                              lang={lang}
+                                              t={t}
+                                              onTabSelect={(newTabId) => {
+                                                setChatMessages(prev => prev.map((m, i) => {
+                                                  if (i === idx) {
+                                                    return {
+                                                      ...m,
+                                                      structuredResults: {
+                                                        ...m.structuredResults,
+                                                        activeTabId: newTabId
                                                       }
-                                                      return m;
-                                                    }));
-                                                  }}
-                                                >
-                                                  {lang === 'ar' ? (t.getSubcatName ? t.getSubcatName(tab.name) : tab.name) : tab.name}
-                                                </button>
-                                              ))}
-                                            </div>
+                                                    };
+                                                  }
+                                                  return m;
+                                                }));
+                                              }}
+                                            />
                                           )}
                                           <div className="structured-items-list">
                                             {msg.structuredResults.items
