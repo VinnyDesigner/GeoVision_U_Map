@@ -1517,63 +1517,63 @@ input:checked+.slider:before {
 
 /* ── Hero Title Animated Letter 'O' ── */
 @keyframes morph-outer {
-  0%, 15%, 85%, 100% {
+  0%, 8%, 92%, 100% {
     d: path("M50,95 C25.15,95 5,74.85 5,50 C5,25.15 25.15,5 50,5 C74.85,5 95,25.15 95,50 C95,74.85 74.85,95 50,95 Z");
   }
-  25%, 75% {
+  20%, 80% {
     d: path("M50,100 C15,70 10,54 10,40 C10,17.9 27.9,0 50,0 C72.1,0 90,17.9 90,40 C90,54 85,70 50,100 Z");
   }
 }
 
 @keyframes morph-inner {
-  0%, 15%, 85%, 100% {
+  0%, 8%, 92%, 100% {
     cy: 50px;
     r: 18px;
   }
-  25%, 75% {
+  20%, 80% {
     cy: 40px;
     r: 18px;
   }
 }
 
 @keyframes arrow-orbit-back {
-  0%, 17.9% {
+  0%, 14.9% {
     opacity: 0;
   }
-  18% {
+  15% {
     opacity: 1;
     transform: translate(120px, 40px) rotate(-45deg) scale(0.3);
   }
-  20% {
+  17.5% {
     opacity: 1;
     transform: translate(60px, -30px) rotate(-80deg) scale(0.5);
   }
-  22% {
+  20% {
     opacity: 1;
     transform: translate(-10px, -80px) rotate(-120deg) scale(0.7);
   }
-  22.01%, 100% {
+  20.01%, 100% {
     opacity: 0;
   }
 }
 
 @keyframes arrow-orbit-front {
-  0%, 21.99% {
+  0%, 19.99% {
     opacity: 0;
   }
-  22% {
+  20% {
     opacity: 1;
     transform: translate(-10px, -80px) rotate(-120deg) scale(0.7);
   }
-  25% {
+  23.5% {
     opacity: 1;
     transform: translate(-70px, -10px) rotate(-190deg) scale(0.85);
   }
-  28% {
+  27% {
     opacity: 1;
     transform: translate(-45px, 20px) rotate(-240deg) scale(1.05);
   }
-  31% {
+  30.5% {
     opacity: 1;
     transform: translate(-15px, 10px) rotate(-290deg) scale(1.05);
     animation-timing-function: ease-out;
@@ -1582,25 +1582,25 @@ input:checked+.slider:before {
     opacity: 1;
     transform: translate(0px, 0px) rotate(-332deg) scale(1);
   }
-  70% {
+  75% {
     opacity: 1;
     transform: translate(0px, 0px) rotate(-332deg) scale(1);
     animation-timing-function: ease-in;
   }
-  74% {
+  79% {
     opacity: 0;
     transform: translate(100px, -100px) rotate(-315deg) scale(0.2);
   }
-  74.01%, 100% {
+  79.01%, 100% {
     opacity: 0;
   }
 }
 
 @keyframes ripples-visibility {
-  0%, 25%, 75%, 100% {
+  0%, 20%, 80%, 100% {
     opacity: 0;
   }
-  30%, 70% {
+  25%, 75% {
     opacity: 1;
   }
 }
@@ -1640,39 +1640,43 @@ input:checked+.slider:before {
 }
 
 .animated-letter-o-wrapper .outer-anim {
-  animation: morph-outer 10s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: morph-outer 6s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .animated-letter-o-wrapper .inner-anim {
-  animation: morph-inner 10s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: morph-inner 6s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .animated-letter-o-wrapper .arrow-orbit-back {
-  animation: arrow-orbit-back 10s infinite linear;
+  animation: arrow-orbit-back 6s infinite linear;
   transform-origin: 50px 40px;
 }
 
 .animated-letter-o-wrapper .arrow-orbit-front {
-  animation: arrow-orbit-front 10s infinite linear;
+  animation: arrow-orbit-front 6s infinite linear;
   transform-origin: 50px 40px;
 }
 
 .animated-letter-o-wrapper .ripples-group {
-  animation: ripples-visibility 10s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: ripples-visibility 6s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .animated-letter-o-wrapper .ring-p-1 {
-  animation: pulse-ring 2.5s infinite;
+  animation: pulse-ring 2s infinite;
   animation-delay: 0s;
   transform-origin: 50px 100px;
   opacity: 0;
 }
 
 .animated-letter-o-wrapper .ring-p-2 {
-  animation: pulse-ring 2.5s infinite;
-  animation-delay: 1.25s;
+  animation: pulse-ring 2s infinite;
+  animation-delay: 1s;
   transform-origin: 50px 100px;
   opacity: 0;
+}
+
+.animated-letter-o-dark {
+  filter: drop-shadow(0 0 10px rgba(103, 232, 249, 0.65)) drop-shadow(0 2px 8px rgba(8, 145, 178, 0.45));
 }
 
 @keyframes aiStarSparkle {
